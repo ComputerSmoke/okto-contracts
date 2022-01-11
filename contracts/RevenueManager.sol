@@ -8,8 +8,9 @@ import "../interfaces/IRevenueManager.sol";
 contract RevenueManager is Ownable,IRevenueManager {
     address immutable dev1;
     uint256 public override balance;
-    constructor(address _dev1) Ownable() {
+    constructor(address _dev1, address _ownerWallet) Ownable() {
         dev1 = _dev1;
+        transferOwnership(_ownerWallet);
     }
 
     receive() external override payable {
