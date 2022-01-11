@@ -10,10 +10,10 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
     /*Each entry holds the number traits for 64 NFTs with 4 bits each.
     Values 0-5 correspond to number of traits, the power level of this NFT.
     A value of 6-9 correponds to a squid, with alpha N-1.*/
-    uint256[55] public override traitsGen0;
-    uint256[79] public override traitsGen1;
-    uint256[157] public override traitsGen2;
-    uint256[79] public override traitsGen3;
+    uint256[84] public override traitsGen0;
+    uint256[120] public override traitsGen1;
+    uint256[239] public override traitsGen2;
+    uint256[120] public override traitsGen3;
     //Provenance hashes for generation traits
     uint256[4] public override traitProvenance;
     //baseURI of metadata by generation
@@ -90,34 +90,34 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
     }
 
     //Set generation traits. Should be done once per gen after mints and is verifiable by provenance hashes.
-    function setTraitsGen0(uint256[55] memory _traits) external override onlyOwner {
-        for(uint i = 0; i < 44; i++) traitsGen0[i] = _traits[i];
+    function setTraitsGen0(uint256[84] memory _traits) external override onlyOwner {
+        for(uint i = 0; i < 84; i++) traitsGen0[i] = _traits[i];
         currentGen++;
         emit SetTraits(0);
     }
-    function setTraitsGen1(uint256[79] memory _traits) external override onlyOwner {
-        for(uint i = 0; i < 63; i++) traitsGen1[i] = _traits[i];
+    function setTraitsGen1(uint256[120] memory _traits) external override onlyOwner {
+        for(uint i = 0; i < 120; i++) traitsGen1[i] = _traits[i];
         currentGen++;
         emit SetTraits(1);
     }
-    function setTraitsGen2(uint256[157] memory _traits) external override onlyOwner {
-        for(uint i = 0; i < 125; i++) traitsGen2[i] = _traits[i];
+    function setTraitsGen2(uint256[239] memory _traits) external override onlyOwner {
+        for(uint i = 0; i < 239; i++) traitsGen2[i] = _traits[i];
         currentGen++;
         emit SetTraits(2);
     }
-    function setTraitsGen3(uint256[79] memory _traits) external override onlyOwner {
-        for(uint i = 0; i < 63; i++) traitsGen3[i] = _traits[i];
+    function setTraitsGen3(uint256[120] memory _traits) external override onlyOwner {
+        for(uint i = 0; i < 120; i++) traitsGen3[i] = _traits[i];
         currentGen++;
         emit SetTraits(3);
     }
 
     //Get compressed attributes of an NFT. 
-    function getTraits(uint256 _tokenId) external view returns(uint8) {
+    function getTraits(uint256 _tokenId) external override view returns(uint8) {
         require(_exists(_tokenId), "This NFT is not minted");
 
         uint gen = getGen(_tokenId);
         uint relativeId = _tokenId - genMintCaps[gen];
-        uint idx = relativeId / 64;//Index of full 256 bit entry containing the data we want
+        uint idx = relativeId / 42;//Index of full 256 bit entry containing the data we want
         uint offset = relativeId - idx;//Offset of the data we want within the 256 bit entry
 
         uint256 fullEntry;//256 bit entry to extract our data from
@@ -126,7 +126,7 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
         else if(gen == 2) fullEntry = traitsGen2[idx];
         else fullEntry = traitsGen3[idx];
 
-        return uint8((traitsGen0[idx] >> ((63-offset)*4)) & 0xf);//Extract 4 bits at offset from entry
+        return uint8((fullEntry >> (4+(41-offset)*6)) & 0x3f);//Extract 6 bits at offset from entry
     }
     //Get the generation of a token by its ID.
     function getGen(uint256 _tokenId) internal view returns(uint8) {

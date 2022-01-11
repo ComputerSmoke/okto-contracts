@@ -15,8 +15,8 @@ async function deployNFT(account) {
 
 function getTraitsArr() {
     let arr = [];
-    for(let i = 0; i < 157; i++) {
-        arr.push(""+Math.floor(Math.random()*10000000))
+    for(let i = 0; i < 239; i++) {
+        arr.push(""+Math.floor(Math.random()*256000000000000))
     }
     return arr;
 }
