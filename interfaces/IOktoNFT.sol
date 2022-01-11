@@ -8,4 +8,37 @@ interface IOktoNFT {
      * to verify order has not been tampered with.
      */
     event SetTraits(uint8 generation);
+
+    //Actions
+    /**
+     * Mint NFT, see paper for tokenomics.
+     */
+    function mint() external payable;
+
+    //Owner actions
+    /**
+     * Traits are encoded as follows:
+     * Each index corresponds to 64 NFTs, 4 bits for each. The values of the bits determine the number of traits
+     * it has (0-5), and a value of 6-9 indicates that it is a squid with alpha N-1.
+     */
+    function setTraitsGen0(uint256[55] memory traits) external;
+    function setTraitsGen1(uint256[79] memory traits) external;
+    function setTraitsGen2(uint256[157] memory traits) external;
+    function setTraitsGen3(uint256[79] memory traits) external;
+
+    //Views
+    /**
+     * Get the traits by generation. The traits for each generation will be uploaded after the minting period,
+     * with provenance hash on launch to verify they have not been tampered with. Traits are encoded as follows:
+     * Each index corresponds to 64 NFTs, 4 bits for each. The values of the bits determine the number of traits
+     * it has (0-5), and a value of 6-9 indicates that it is a squid with alpha N-1.
+     */
+    function traitsGen0(uint index) external view returns(uint256);
+    function traitsGen1(uint index) external view returns(uint256);
+    function traitsGen2(uint index) external view returns(uint256);
+    function traitsGen3(uint index) external view returns(uint256);
+    /**
+     * Provenance hashes by generation to verify authenticity of ordering.
+     */
+    function traitProvenance(uint generation) external view returns(uint256);
 }
