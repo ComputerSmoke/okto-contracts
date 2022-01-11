@@ -41,4 +41,10 @@ interface IOktoNFT {
      * Provenance hashes by generation to verify authenticity of ordering.
      */
     function traitProvenance(uint generation) external view returns(uint256);
+    /**
+     * Get the encoding of a token's attributes by its ID. 
+     * A value 0-5 corresponds to the number of traits the octopus has.
+     * A value of 6-9 corresponds to the alpha level of the squid.
+     */
+    function getTraits(uint256 tokenId) external view returns(uint8);
 }

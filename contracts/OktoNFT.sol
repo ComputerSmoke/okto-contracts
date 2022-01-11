@@ -27,7 +27,7 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
     uint256 nextId;
     //Current 
     uint16[4] genMintCaps;
-    uint8 gen;
+    uint8 currentGen;
 
     /**
      * @param _traitProvenance: array of generation provenance hashes
@@ -50,12 +50,12 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
         URIGen1 = _URIGen1;
         URIGen2 = _URIGen2;
         URIGen3 = _URIGen3;
-        genMintCaps = [3500, 5000, 10000, 5000];
+        genMintCaps = [3500, 8500, 18500, 23500];
     }
     //Mint NFT
     function mint() external payable override {
         require(msg.value >= mintCost, "Insufficient transfer value");
-        require(gen < 4 && nextId < genMintCaps[gen], "This generation has been fully minted");
+        require(currentGen < 4 && nextId < genMintCaps[currentGen], "This generation has been fully minted");
         nextId++;
         _safeMint(msg.sender, nextId-1);
     }
@@ -92,23 +92,48 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
     //Set generation traits. Should be done once per gen after mints and is verifiable by provenance hashes.
     function setTraitsGen0(uint256[55] memory _traits) external override onlyOwner {
         for(uint i = 0; i < 44; i++) traitsGen0[i] = _traits[i];
-        gen++;
+        currentGen++;
         emit SetTraits(0);
     }
     function setTraitsGen1(uint256[79] memory _traits) external override onlyOwner {
         for(uint i = 0; i < 63; i++) traitsGen1[i] = _traits[i];
-        gen++;
+        currentGen++;
         emit SetTraits(1);
     }
     function setTraitsGen2(uint256[157] memory _traits) external override onlyOwner {
         for(uint i = 0; i < 125; i++) traitsGen2[i] = _traits[i];
-        gen++;
+        currentGen++;
         emit SetTraits(2);
     }
     function setTraitsGen3(uint256[79] memory _traits) external override onlyOwner {
         for(uint i = 0; i < 63; i++) traitsGen3[i] = _traits[i];
-        gen++;
+        currentGen++;
         emit SetTraits(3);
     }
 
+    //Get compressed attributes of an NFT. 
+    function getTraits(uint256 _tokenId) external view returns(uint8) {
+        require(_exists(_tokenId), "This NFT is not minted");
+
+        uint gen = getGen(_tokenId);
+        uint relativeId = _tokenId - genMintCaps[gen];
+        uint idx = relativeId / 64;//Index of full 256 bit entry containing the data we want
+        uint offset = relativeId - idx;//Offset of the data we want within the 256 bit entry
+
+        uint256 fullEntry;//256 bit entry to extract our data from
+        if(gen == 0) fullEntry = traitsGen0[idx];
+        else if(gen == 1) fullEntry = traitsGen1[idx];
+        else if(gen == 2) fullEntry = traitsGen2[idx];
+        else fullEntry = traitsGen3[idx];
+
+        return uint8((traitsGen0[idx] >> ((63-offset)*4)) & 0xf);//Extract 4 bits at offset from entry
+    }
+    //Get the generation of a token by its ID.
+    function getGen(uint256 _tokenId) internal view returns(uint8) {
+        for(uint8 i = 0; i < 4; i++) {
+            if(_tokenId < genMintCaps[i]) return i;
+        }
+        revert("tokenId exceeds max ID in last generation");
+    }
+    
 }
