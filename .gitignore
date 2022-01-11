@@ -1,0 +1,7 @@
+*.bak
+**/node_modules
+**/metadata
+**/artifacts
+**/cache
+**params
+**/params
