@@ -28,12 +28,12 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
     //Next ID to mint
     uint256 nextId;
     //Current 
-    uint16[4] genMintCaps;
-    uint8 currentGen;
+    uint16[4] public override genMintCaps;
+    uint8 public override currentGen;
     //Aquarium with perms to mint
     IAquarium aquarium;
-    //True ater aquarium has been set, preventing it from changing
-    bool squariumSet;
+    //True after aquarium has been set, preventing it from changing
+    bool public override aquariumSet;
     //Only allow aquarium to call this
     modifier onlyAquarium() {
         require(msg.sender == address(aquarium));
@@ -141,7 +141,7 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
         return uint8((fullEntry >> (4+(41-offset)*6)) & 0x3f);//Extract 6 bits at offset from entry
     }
     //Get the generation of a token by its ID.
-    function getGen(uint256 _tokenId) internal view returns(uint8) {
+    function getGen(uint256 _tokenId) public override view returns(uint8) {
         for(uint8 i = 0; i < 4; i++) {
             if(_tokenId < genMintCaps[i]) return i;
         }

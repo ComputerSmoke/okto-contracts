@@ -10,47 +10,50 @@ import "../interfaces/IAquarium.sol";
 //Mint/stake contract for okto NFTs
 contract Aquarium is ERC721Holder,IAquarium {
     //ERC20 token contract
-    OktoCoin public immutable oktoCoin;
+    OktoCoin immutable oktoCoin;
     //Handles payouts to dev team
-    RevenueManager public immutable revenueManager;
+    RevenueManager immutable revenueManager;
     //ERC721 NFT contract
-    IOktoNFT public immutable oktoNFT;
+    IOktoNFT immutable oktoNFT;
     
     //Base amount okto earned per day for staking per power level of the oktopus.
-    uint256 public constant dailyMintRate = 10000 ether;
+    uint256 public override constant dailyMintRate = 10000 ether;
     //Percentage of okto which goes to squids when okto claimed.
-    uint256 public constant claimTax = 20;
+    uint256 public override constant claimTax = 20;
     //Percentage chance that all okto goes to squids when octopus unstaked.
-    uint256 public constant unstakeRisk = 50;
+    uint256 public override constant unstakeRisk = 50;
     //Max supply of okto
-    uint256 public constant maxOkto = 5000000000 ether;
+    uint256 public override constant maxOkto = 5000000000 ether;
     //Max power of a squid
-    uint8 public constant maxSquidPower = 24;
+    uint8 public override constant maxSquidPower = 24;
 
     //Total okto earned per octopus power level
-    uint256 public oktoEarned;
+    uint256 public override oktoEarned;
     //Total power level of staked octopi
-    uint256 public octoPowerStaked;
+    uint256 public override octoPowerStaked;
+    //Total rewards given to staked octopi
+    uint256 public override totalOktoEarned;
     
     //Total okto stolen per squid alpha level
-    uint256 public oktoStolen;
+    uint256 public override oktoStolen;
     //Total power level of staked squids
-    uint256 public squidPowerStaked;
+    uint256 public override squidPowerStaked;
 
     //Last time okto was claimed
-    uint256 public lastClaimTimestamp;
+    uint256 public override lastClaimTimestamp;
 
     //Token ID to stake data
     mapping(uint256 => Stake) stakes;
     //Array of squid IDs used to randomly select stealer of NFT.
     //NFTs not considered for this until they have been staked once.
-    uint256[] public squids;
+    uint256[] public override squids;
     //Cost of minting NFT
-    uint256 public constant mintCost = 25 ether;
+    uint256 public override constant mintCost = 25 ether;
 
-    //Require that msg.sender own the token
+    //Require that msg.sender own the token, and generation is active
     modifier onlyTokenOwner(uint256 _tokenId) {
         require(oktoNFT.ownerOf(_tokenId) == msg.sender, "Message sender does not own this token");
+        require(oktoNFT.getGen(_tokenId) < oktoNFT.currentGen(), "This generation has yet to complete minting");
         _;
     }
     //Do not let tokens be staked until timestamp exceeds last timestamp, protection against block timestamp manipulation.
@@ -60,7 +63,13 @@ contract Aquarium is ERC721Holder,IAquarium {
     }
     //Update total earnings based off current time
     modifier updateEarnings() {
-        oktoEarned += (block.timestamp - lastClaimTimestamp) * dailyMintRate / 1 days;
+        uint256 delta = (block.timestamp - lastClaimTimestamp) * dailyMintRate / 1 days;
+        oktoEarned += delta;
+        totalOktoEarned += delta*octoPowerStaked;
+        if(totalOktoEarned > maxOkto) {
+            oktoEarned -= (totalOktoEarned - maxOkto) / octoPowerStaked;
+            totalOktoEarned = maxOkto;
+        }
         lastClaimTimestamp = block.timestamp;
         _;
     }
@@ -75,8 +84,8 @@ contract Aquarium is ERC721Holder,IAquarium {
         oktoNFT = IOktoNFT(_oktoNFT);
     }
     
-    //Staking
-    function stakeNFT(uint256 _tokenId) external onlyTokenOwner(_tokenId) noTimetravel {
+    //Stake squid or octo
+    function stakeNFT(uint256 _tokenId) external override onlyTokenOwner(_tokenId) noTimetravel {
         uint8 traits = oktoNFT.getTraits(_tokenId);
         bool squid = traits & 0xf > 5;//Squid if first 4 bits of traits > 5.
         Stake storage stake = stakes[_tokenId];
@@ -87,36 +96,51 @@ contract Aquarium is ERC721Holder,IAquarium {
         //Stake
         stake.lastClaimEarned = squid ? oktoStolen : oktoEarned;
         stake.staked = true;
+        emit Staked(msg.sender, _tokenId, stake.lastClaimEarned);
     }
-    function claimNFT(uint256 _tokenId) external onlyTokenOwner(_tokenId) noTimetravel {
-        _claim(_tokenId, false, 0);
+    //Claim rewards from squid or octo
+    function claimNFT(uint256 _tokenId) external override onlyTokenOwner(_tokenId) noTimetravel {
+        (uint256 claimAmount, uint256 taxAmount, bool squid) = _claim(_tokenId, false, 0);
+        emit Claim(_tokenId, claimAmount, taxAmount, squid, false);
     }
-    function unstake(uint256 _tokenId, uint256 _seed) external onlyTokenOwner(_tokenId) noTimetravel {
-        _claim(_tokenId, true, _seed);
+    //Unstake and claim rewards from squid or octo
+    function unstakeNFT(uint256 _tokenId, uint256 _seed) external override onlyTokenOwner(_tokenId) noTimetravel {
+        (uint256 claimAmount, uint256 taxAmount, bool squid) = _claim(_tokenId, true, _seed);
         stakes[_tokenId].staked = false;
+        emit Claim(_tokenId, claimAmount, taxAmount, squid, true);
     }
-    function _claim(uint256 _tokenId, bool _risk, uint256 _seed) internal updateEarnings {
+    /**
+     * @param _tokenId - ID of token to stake
+     * @param _risk - true if risking (unstaking)
+     * @param _seed - seed to use for random number generation
+     * @return uint256 - amount claimed
+     * @return uint256 - tax amount
+     * @return bool - true if token was squid
+     */
+    function _claim(uint256 _tokenId, bool _risk, uint256 _seed) internal updateEarnings returns(uint256, uint256, bool) {
         Stake storage stake = stakes[_tokenId];
         require(stake.staked, "Token is not staked.");
 
         uint8 traits = oktoNFT.getTraits(_tokenId);
-        bool squid = traits & 0xf > 5;//Squid if first 4 bits of traits > 5.
+        //bool squid = (traits & 0xf > 5) Squid if first 4 bits of traits > 5. 
 
         uint256 tax;
         if(squidPowerStaked == 0) tax = 0;//If no squids staked, tax is always 0
         else if(!_risk) tax = claimTax;
         else if(_random(_seed) % 100 < unstakeRisk) tax = 100;
 
-        uint256 totalEarned = squid ? oktoStolen : oktoEarned;
+        uint256 totalEarned = (traits & 0xf > 5) ? oktoStolen : oktoEarned;
         uint256 claimAmount = (totalEarned - stake.lastClaimEarned) * powerLevel(traits);
-        uint256 taxAmount = claimAmount * tax / 100;
+        tax = claimAmount * tax / 100;//taxAmount
         stake.lastClaimEarned = totalEarned;
-        if(squidPowerStaked > 0) oktoStolen += taxAmount / squidPowerStaked;
-        oktoCoin.mint(oktoNFT.ownerOf(_tokenId), claimAmount - taxAmount);
+        if(squidPowerStaked > 0) oktoStolen += tax / squidPowerStaked;
+        oktoCoin.mint(oktoNFT.ownerOf(_tokenId), claimAmount - tax);
+
+        return (claimAmount, tax, traits & 0xf > 5);
     }
 
     //Mint
-    function mint(uint256 _seed) external payable {
+    function mint(uint256 _seed) external override payable {
         require(msg.value >= mintCost, "Insufficient transfer value");
         bool stolen = _random(_seed) % 10 == 0;
         address receiver;
@@ -143,7 +167,7 @@ contract Aquarium is ERC721Holder,IAquarium {
     }
 
     //Get the power level of an octopus or squid based off its traits. This determines how efficiently they collect stakes.
-    function powerLevel(uint8 traits) public pure returns(uint8) {
+    function powerLevel(uint8 traits) public override pure returns(uint8) {
         bool squid = traits & 0xf > 5;//Squid if first 4 bits of traits > 5.
         uint8 rarity = traits >> 4;
         /*Min/Max powers
@@ -164,4 +188,16 @@ contract Aquarium is ERC721Holder,IAquarium {
         )));
     }
     
+    //$Okto contract address
+    function oktoCoinAddress() external override view returns(address) {
+        return address(oktoCoin);
+    }
+    //Revenue manager contract address
+    function revenueManagerAddress() external override view returns(address) {
+        return address(revenueManager);
+    }
+    //NFT contract address
+    function oktoNFTAddress() external override view returns(address) {
+        return address(oktoNFT);
+    }
 }

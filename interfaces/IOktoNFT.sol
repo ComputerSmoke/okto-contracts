@@ -50,4 +50,20 @@ interface IOktoNFT is IERC721 {
      * 0 least rare, 2 most rare
      */
     function getTraits(uint256 tokenId) external view returns(uint8);
+    /**
+     * Range of IDs for each generation, value corresponds to the first ID which will not be in that generation.
+     */
+    function genMintCaps(uint256 gen) external view returns(uint16);
+    /**
+     * Get the generation of an NFT based off its current ID.
+     */
+    function getGen(uint256 tokenId) external view returns(uint8);
+    /**
+     * Get current generation that is minting, 4 corresponds to all generations having been minted.
+     */
+    function currentGen() external view returns(uint8);
+    /**
+     * True if aquarium address has been set. This address should be set before minting commences.
+     */
+    function aquariumSet() external view returns(bool);
 }
