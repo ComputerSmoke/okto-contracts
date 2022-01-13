@@ -6,9 +6,10 @@ import "./OktoCoin.sol";
 import "./RevenueManager.sol";
 import "../interfaces/IOktoNFT.sol";
 import "../interfaces/IAquarium.sol";
+import "./utils/TimeLord.sol";
 
 //Mint/stake contract for okto NFTs
-contract Aquarium is ERC721Holder,IAquarium {
+contract Aquarium is ERC721Holder,IAquarium,TimeLord {
     //ERC20 token contract
     OktoCoin immutable oktoCoin;
     //Handles payouts to dev team
@@ -56,21 +57,18 @@ contract Aquarium is ERC721Holder,IAquarium {
         require(oktoNFT.getGen(_tokenId) < oktoNFT.currentGen(), "This generation has yet to complete minting");
         _;
     }
-    //Do not let tokens be staked until timestamp exceeds last timestamp, protection against block timestamp manipulation.
-    modifier noTimetravel() {
-        require(block.timestamp > lastClaimTimestamp, "Block timestamp too low, please wait a bit.");
-        _;
-    }
     //Update total earnings based off current time
     modifier updateEarnings() {
-        uint256 delta = (block.timestamp - lastClaimTimestamp) * dailyMintRate / 1 days;
-        oktoEarned += delta;
-        totalOktoEarned += delta*octoPowerStaked;
-        if(totalOktoEarned > maxOkto) {
-            oktoEarned -= (totalOktoEarned - maxOkto) / octoPowerStaked;
-            totalOktoEarned = maxOkto;
+        if(block.timestamp > lastClaimTimestamp) {
+            uint256 delta = (block.timestamp - lastClaimTimestamp) * dailyMintRate / 1 days;
+            oktoEarned += delta;
+            totalOktoEarned += delta*octoPowerStaked;
+            if(totalOktoEarned > maxOkto) {
+                oktoEarned -= (totalOktoEarned - maxOkto) / octoPowerStaked;
+                totalOktoEarned = maxOkto;
+            }
+            lastClaimTimestamp = block.timestamp;
         }
-        lastClaimTimestamp = block.timestamp;
         _;
     }
 
@@ -85,7 +83,9 @@ contract Aquarium is ERC721Holder,IAquarium {
     }
     
     //Stake squid or octo
-    function stakeNFT(uint256 _tokenId) external override onlyTokenOwner(_tokenId) noTimetravel {
+    function stakeNFT(
+        uint256 _tokenId
+    ) external override onlyTokenOwner(_tokenId) {
         uint8 traits = oktoNFT.getTraits(_tokenId);
         bool squid = traits & 0xf > 5;//Squid if first 4 bits of traits > 5.
         Stake storage stake = stakes[_tokenId];
@@ -99,12 +99,17 @@ contract Aquarium is ERC721Holder,IAquarium {
         emit Staked(msg.sender, _tokenId, stake.lastClaimEarned);
     }
     //Claim rewards from squid or octo
-    function claimNFT(uint256 _tokenId) external override onlyTokenOwner(_tokenId) noTimetravel {
+    function claimNFT(
+        uint256 _tokenId
+    ) external override onlyTokenOwner(_tokenId) {
         (uint256 claimAmount, uint256 taxAmount, bool squid) = _claim(_tokenId, false, 0);
         emit Claim(_tokenId, claimAmount, taxAmount, squid, false);
     }
     //Unstake and claim rewards from squid or octo
-    function unstakeNFT(uint256 _tokenId, uint256 _seed) external override onlyTokenOwner(_tokenId) noTimetravel {
+    function unstakeNFT(
+        uint256 _tokenId, 
+        uint256 _seed
+    ) external override onlyTokenOwner(_tokenId) {
         (uint256 claimAmount, uint256 taxAmount, bool squid) = _claim(_tokenId, true, _seed);
         stakes[_tokenId].staked = false;
         emit Claim(_tokenId, claimAmount, taxAmount, squid, true);
@@ -117,7 +122,11 @@ contract Aquarium is ERC721Holder,IAquarium {
      * @return uint256 - tax amount
      * @return bool - true if token was squid
      */
-    function _claim(uint256 _tokenId, bool _risk, uint256 _seed) internal updateEarnings returns(uint256, uint256, bool) {
+    function _claim(
+        uint256 _tokenId, 
+        bool _risk, 
+        uint256 _seed
+    ) internal updateEarnings returns(uint256, uint256, bool) {
         Stake storage stake = stakes[_tokenId];
         require(stake.staked, "Token is not staked.");
 

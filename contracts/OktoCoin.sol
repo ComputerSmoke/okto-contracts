@@ -5,8 +5,9 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract OktoCoin is ERC20,Ownable {
-    constructor(uint256 _supply) ERC20("Oktopus", "$OKT") Ownable() {
-        _mint(msg.sender, _supply);
+
+    constructor() ERC20("Oktopus", "$OKT") Ownable() {
+        
     }
     //Mint new tokens to an address. Owner is Aquarium, so only Aquarium can mint like this.
     function mint(address _recipient, uint256 _amount) external onlyOwner {

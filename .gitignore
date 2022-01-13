@@ -5,3 +5,5 @@
 **/cache
 **params
 **/params
+**.env.local
+**/.env.local
