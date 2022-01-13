@@ -13,7 +13,7 @@ contract RevenueManager is Ownable,IRevenueManager {
         transferOwnership(_ownerWallet);
     }
 
-    receive() external override payable {
+    function mintIncome() external override payable {
         balance += msg.value;
     }
 

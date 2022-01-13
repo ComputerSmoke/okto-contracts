@@ -5,11 +5,15 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "../interfaces/IOktoNFT.sol";
+import "../interfaces/IAquarium.sol";
 
 contract OktoNFT is ERC721,Ownable,IOktoNFT {
-    /*Each entry holds the number traits for 64 NFTs with 4 bits each.
-    Values 0-5 correspond to number of traits, the power level of this NFT.
-    A value of 6-9 correponds to a squid, with alpha N-1.*/
+    /**
+     * Traits are encoded as follows:
+     * Each index corresponds to 42 NFTs, 6 bits for each. The values of the first 4 bits determine the number of traits
+     * it has (0-5), and a value of 6-9 indicates that it is a squid with alpha N-1. The last 2 bits determine its rarity,
+     * 0 least rare, 2 most rare
+     */
     uint256[84] public override traitsGen0;
     uint256[120] public override traitsGen1;
     uint256[239] public override traitsGen2;
@@ -21,13 +25,20 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
     bytes32 immutable URIGen1;
     bytes32 immutable URIGen2;
     bytes32 immutable URIGen3;
-    //Cost of minting NFT
-    uint256 mintCost;
     //Next ID to mint
     uint256 nextId;
     //Current 
     uint16[4] genMintCaps;
     uint8 currentGen;
+    //Aquarium with perms to mint
+    IAquarium aquarium;
+    //True ater aquarium has been set, preventing it from changing
+    bool squariumSet;
+    //Only allow aquarium to call this
+    modifier onlyAquarium() {
+        require(msg.sender == address(aquarium));
+        _;
+    }
 
     /**
      * @param _traitProvenance: array of generation provenance hashes
@@ -35,7 +46,6 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
     constructor(
         uint256[4] memory _traitProvenance,
         address _owner,
-        uint256 _mintCost,
         bytes32 _URIGen0,
         bytes32 _URIGen1,
         bytes32 _URIGen2,
@@ -45,19 +55,21 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
             traitProvenance[i] = _traitProvenance[i];
         }
         transferOwnership(_owner);
-        mintCost = _mintCost;
         URIGen0 = _URIGen0;
         URIGen1 = _URIGen1;
         URIGen2 = _URIGen2;
         URIGen3 = _URIGen3;
         genMintCaps = [3500, 8500, 18500, 23500];
     }
+    //Set aquarium pointer
+    function setAquarium(address _aquarium) external onlyOwner {
+        aquarium = IAquarium(_aquarium);
+    }
     //Mint NFT
-    function mint() external payable override {
-        require(msg.value >= mintCost, "Insufficient transfer value");
+    function mint(address _recipient) external override onlyAquarium {
         require(currentGen < 4 && nextId < genMintCaps[currentGen], "This generation has been fully minted");
         nextId++;
-        _safeMint(msg.sender, nextId-1);
+        _safeMint(_recipient, nextId-1);
     }
 
     //Get URI of token

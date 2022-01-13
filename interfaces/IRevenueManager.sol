@@ -6,6 +6,6 @@ interface IRevenueManager {
     function balance() external view returns(uint256);
     //Pay funds out to devs
     function payout() external;
-    //Recieve funds from project
-    receive() external payable;
+    //Recieve funds from mint
+    function mintIncome() external payable;
 }

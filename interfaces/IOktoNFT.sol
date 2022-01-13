@@ -1,7 +1,9 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-interface IOktoNFT {
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+
+interface IOktoNFT is IERC721 {
     //Events
     /**
      * Emitted when traits are set for a generation. Useful for community to then check against provenance hash
@@ -13,7 +15,7 @@ interface IOktoNFT {
     /**
      * Mint NFT, see paper for tokenomics.
      */
-    function mint() external payable;
+    function mint(address _receiver) external;
 
     //Owner actions
     /**
@@ -30,9 +32,7 @@ interface IOktoNFT {
     //Views
     /**
      * Get the traits by generation. The traits for each generation will be uploaded after the minting period,
-     * with provenance hash on launch to verify they have not been tampered with. Traits are encoded as follows:
-     * Each index corresponds to 64 NFTs, 4 bits for each. The values of the bits determine the number of traits
-     * it has (0-5), and a value of 6-9 indicates that it is a squid with alpha N-1.
+     * with provenance hash on launch to verify they have not been tampered with. 
      */
     function traitsGen0(uint index) external view returns(uint256);
     function traitsGen1(uint index) external view returns(uint256);
@@ -44,8 +44,10 @@ interface IOktoNFT {
     function traitProvenance(uint generation) external view returns(uint256);
     /**
      * Get the encoding of a token's attributes by its ID. 
-     * A value 0-5 corresponds to the number of traits the octopus has.
-     * A value of 6-9 corresponds to the alpha level of the squid.
+     * Traits are encoded as follows:
+     * Each index corresponds to 42 NFTs, 6 bits for each. The values of the first 4 bits determine the number of traits
+     * it has (0-5), and a value of 6-9 indicates that it is a squid with alpha N-1. The last 2 bits determine its rarity,
+     * 0 least rare, 2 most rare
      */
     function getTraits(uint256 tokenId) external view returns(uint8);
 }
