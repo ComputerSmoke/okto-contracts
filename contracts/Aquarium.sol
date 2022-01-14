@@ -2,18 +2,18 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
-import "./OktoCoin.sol";
-import "./RevenueManager.sol";
+import "../interfaces/IOktoCoin.sol";
+import "../interfaces/IRevenueManager.sol";
 import "../interfaces/IOktoNFT.sol";
 import "../interfaces/IAquarium.sol";
-import "./utils/TimeLord.sol";
+import "./libs/Entropy.sol";
 
 //Mint/stake contract for okto NFTs
-contract Aquarium is ERC721Holder,IAquarium,TimeLord {
+contract Aquarium is ERC721Holder,IAquarium {
     //ERC20 token contract
-    OktoCoin immutable oktoCoin;
+    IOktoCoin immutable oktoCoin;
     //Handles payouts to dev team
-    RevenueManager immutable revenueManager;
+    IRevenueManager immutable revenueManager;
     //ERC721 NFT contract
     IOktoNFT immutable oktoNFT;
     
@@ -73,12 +73,12 @@ contract Aquarium is ERC721Holder,IAquarium,TimeLord {
     }
 
     constructor(
-        uint256 _totalOkto, 
-        address _dev1,
-        address _oktoNFT
+        address _oktoNFT,
+        address _oktoCoin,
+        address _revenueManager
     ) {
-        oktoCoin = new OktoCoin(_totalOkto);
-        revenueManager = new RevenueManager(_dev1, msg.sender);
+        oktoCoin = IOktoCoin(_oktoCoin);
+        revenueManager = IRevenueManager(_revenueManager);
         oktoNFT = IOktoNFT(_oktoNFT);
     }
     
@@ -136,7 +136,7 @@ contract Aquarium is ERC721Holder,IAquarium,TimeLord {
         uint256 tax;
         if(squidPowerStaked == 0) tax = 0;//If no squids staked, tax is always 0
         else if(!_risk) tax = claimTax;
-        else if(_random(_seed) % 100 < unstakeRisk) tax = 100;
+        else if(Entropy._random(_seed) % 100 < unstakeRisk) tax = 100;
 
         uint256 totalEarned = (traits & 0xf > 5) ? oktoStolen : oktoEarned;
         uint256 claimAmount = (totalEarned - stake.lastClaimEarned) * powerLevel(traits);
@@ -151,7 +151,7 @@ contract Aquarium is ERC721Holder,IAquarium,TimeLord {
     //Mint
     function mint(uint256 _seed) external override payable {
         require(msg.value >= mintCost, "Insufficient transfer value");
-        bool stolen = _random(_seed) % 10 == 0;
+        bool stolen = Entropy._random(_seed) % 10 == 0;
         address receiver;
         if(squids.length > 0 && stolen) receiver = oktoNFT.ownerOf(randomSquid(_seed+1));
         else receiver = msg.sender;
@@ -166,11 +166,11 @@ contract Aquarium is ERC721Holder,IAquarium,TimeLord {
         //Loop until we decide to keep the squid we land on. If all squids have min power, we expect about 5 iterations.
         //Stop if we somehow reach 200 iterations, which is orders of magnitude less likely than being hit by lightning tomorrow.
         for(uint i = 0; i < 200; i++) {
-            uint256 tokenId = squids[_random(_seed+i*2) % numSquids];
+            uint256 tokenId = squids[Entropy._random(_seed+i*2) % numSquids];
             uint8 power = powerLevel(oktoNFT.getTraits(tokenId));
             //Keep this token with likelyhood proportional to its power level, giving those with higher power
             //proportionally higher chance of being chosen.
-            if(_random(_seed+i*2+1) % maxSquidPower < power) return tokenId;
+            if(Entropy._random(_seed+i*2+1) % maxSquidPower < power) return tokenId;
         }
         revert("Failed to pick squid");
     }
@@ -184,17 +184,6 @@ contract Aquarium is ERC721Holder,IAquarium,TimeLord {
         Octo: Min: 5 Max: 30
         */
         return (squid ? (traits & 0xf) - 1 : (traits & 0xf) + 5) * (rarity+1);
-    }
-
-    //Get pseudo random number
-    function _random(uint256 _seed) internal view returns(uint256) {
-        return uint256(keccak256(abi.encodePacked(
-            msg.sender,
-            tx.origin,
-            blockhash(block.number - 1),
-            block.timestamp,
-            _seed
-        )));
     }
     
     //$Okto contract address

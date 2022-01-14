@@ -24,13 +24,8 @@ contract Vault is ERC20,IVault {
     //Last time rewards were updated
     uint256 public lastUpdateTimestamp;
     //Claimable FTM debts
-    mapping(address => uint256) debts;
+    mapping(address => uint256) public debts;
     
-    
-    struct Deposit {
-        uint256 initialAmount;
-        bool deposited;
-    }
     //Track deposits of each address
     mapping(address => Deposit) deposits;
 

@@ -3,11 +3,13 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "../interfaces/IRevenueManager.sol";
 
 contract OktoCoin is ERC20,Ownable {
+    IRevenueManager revenueManager;
 
-    constructor() ERC20("Oktopus", "$OKT") Ownable() {
-        
+    constructor(address _revenueManager) ERC20("Oktopus", "$OKT") Ownable() {
+        revenueManager = IRevenueManager(revenueManager);
     }
     //Mint new tokens to an address. Owner is Aquarium, so only Aquarium can mint like this.
     function mint(address _recipient, uint256 _amount) external onlyOwner {
@@ -16,5 +18,16 @@ contract OktoCoin is ERC20,Ownable {
     //Toast some tokens. Only Aquarium can do this.
     function burn(address _loser, uint256 _amount) external onlyOwner {
         _burn(_loser, _amount);
+    }
+    //update lottery after token transfers
+    function _afterTokenTransfer(
+        address from,
+        address to,
+        uint256 amount
+    ) internal override {
+        if(revenueManager.lotteryComplete) return;
+        revenueManager.updateLottery(_from, balanceOf(_from));
+        revenueManager.updateLottery(_to, balanceOf(_to));
+
     }
 }
