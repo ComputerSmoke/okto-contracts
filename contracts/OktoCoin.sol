@@ -8,8 +8,11 @@ import "../interfaces/IRevenueManager.sol";
 contract OktoCoin is ERC20,Ownable {
     IRevenueManager revenueManager;
 
-    constructor(address _revenueManager) ERC20("Oktopus", "$OKT") Ownable() {
-        revenueManager = IRevenueManager(revenueManager);
+    constructor() ERC20("Oktopus", "$OKT") Ownable() {}
+
+    function setRevenueManager(address _revenueManager) external onlyOwner {
+        require(address(revenueManager) == address(0), "Revenue manager already set.");
+        revenueManager = IRevenueManager(_revenueManager);
     }
     //Mint new tokens to an address. Owner is Aquarium, so only Aquarium can mint like this.
     function mint(address _recipient, uint256 _amount) external onlyOwner {

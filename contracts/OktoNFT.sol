@@ -7,6 +7,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/IOktoNFT.sol";
 import "../interfaces/IAquarium.sol";
 
+import "./libs/Entropy.sol";
+
 contract OktoNFT is ERC721,Ownable,IOktoNFT {
     /**
      * Traits are encoded as follows:
@@ -19,11 +21,16 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
     uint256 nextId;
     //Current 
     uint16[4] public override genMintCaps;
+    //Current generation
     uint8 public override currentGen;
     //Aquarium with perms to mint
     IAquarium aquarium;
     //True after aquarium has been set, preventing it from changing
     bool public override aquariumSet;
+    //track minted IDs by pointing to the id which replaces them, and keeping track of number of ids
+    mapping(uint256 => uint256) idReplacements;
+    //remaining to mint this generation
+    uint16 remainingToMint;
     //Only allow aquarium to call this
     modifier onlyAquarium() {
         require(msg.sender == address(aquarium));
@@ -34,6 +41,7 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
         uint256[655] memory _traits
     ) ERC721("Okto", "OKT") Ownable() {
         genMintCaps = [5000, 15000, 22500, 27500];
+        remainingToMint = genMintCaps[0];
         for(uint i = 0; i < 655; i++) traits[i] = _traits[i];
     }
     //Set aquarium pointer
@@ -42,10 +50,20 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
         aquarium = IAquarium(_aquarium);
     }
     //Mint NFT
-    function mint(address _recipient) external override onlyAquarium {
-        require(currentGen < 4 && nextId < genMintCaps[currentGen], "This generation has been fully minted");
-        nextId++;
-        _safeMint(_recipient, nextId-1);
+    function mint(address _recipient, uint256 _seed) external override onlyAquarium {
+        require(currentGen < 4, "This generation has been fully minted");
+        uint256 idx = _genStartIdx(currentGen) + Entropy.random(_seed) % remainingToMint;
+        uint256 id = idReplacements[idx];
+        if(id == 0) {//Id not replaced, so idx is id.
+            id = idx;
+        }
+        remainingToMint--;
+        //replace used id with the id that will be excluded by the reduction in remainingToMint
+        uint256 excludedId = idReplacements[remainingToMint];
+        if(excludedId == 0) excludedId = remainingToMint;
+        idReplacements[idx] = excludedId;
+
+        _safeMint(_recipient, id);
     }
 
     function _baseURI() internal override view returns(string memory) {
@@ -85,5 +103,11 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
         }
         revert("tokenId exceeds max ID in last generation");
     }
-    
+    //Get the max number of mints in a generation
+    function getGenSize(uint8 _gen) internal view returns(uint16) {
+        return genMintCaps[_gen] - _genStartIdx(_gen);
+    } 
+    function _genStartIdx(uint8 _gen) internal view returns(uint16) {
+        return _gen == 0 ? 0 : genMintCaps[_gen-1];
+    }
 }

@@ -1,5 +1,6 @@
 require("@nomiclabs/hardhat-waffle");
 require("@nomiclabs/hardhat-web3");
+require("crypto");
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */

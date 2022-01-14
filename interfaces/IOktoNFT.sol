@@ -15,7 +15,7 @@ interface IOktoNFT is IERC721 {
     /**
      * Mint NFT, see paper for tokenomics.
      */
-    function mint(address _receiver) external;
+    function mint(address _receiver, uint256 seed) external;
 
     //Views
     /**

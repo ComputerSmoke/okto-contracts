@@ -36,10 +36,10 @@ contract RevenueManager is Ownable,IRevenueManager {
         _;
     }
 
-    constructor(address _dev1, address _oktoCoin, uint256 _launchTime) Ownable() {
+    constructor(address _dev1, address _oktoCoin) Ownable() {
         dev1 = _dev1;
         oktoCoin = IOktoCoin(_oktoCoin);
-        launchTime = _launchTime;
+        launchTime = block.timestamp;
     }
 
     function mintIncome() external override payable {
@@ -69,13 +69,13 @@ contract RevenueManager is Ownable,IRevenueManager {
         if(_user == address(0)) return;
         int256 idx = int256(positions[_user])-1;
         if(_balance < 50000 ether) {
-            if(idx != -1) _removeFromLottery(_user, idx);
+            if(idx != -1) _removeFromLottery(idx);
         } else if(idx == -1) {
             _addToLottery(_user);
         } 
     }
     //Remove user from lottery
-    function _removeFromLottery(address _user, int256 _idx) internal {
+    function _removeFromLottery(int256 _idx) internal {
         uint256 idx = uint256(_idx);
         if(numParticipants > 1) participants[idx] = participants[numParticipants-1];
         numParticipants--;
@@ -102,9 +102,9 @@ contract RevenueManager is Ownable,IRevenueManager {
             return;
         }
         for(uint i = 0; i < 200; i++) {//Retry for winner until found, odds of hitting 200 fails are like nothing.
-            uint256 winIdx = Entropy._random(_seed) % numParticipants;
+            uint256 winIdx = Entropy.random(_seed) % numParticipants;
             address winner = participants[winIdx];
-            if(oktoCoin.balanceOf(winner) > 500000 ether || Entropy._random(_seed+i+1) % 10 == 0) {
+            if(oktoCoin.balanceOf(winner) > 500000 ether || Entropy.random(_seed+i+1) % 10 == 0) {
                 payable(winner).transfer(lotteryAmount);
                 emit LotteryWinner(winner);
                 return;
