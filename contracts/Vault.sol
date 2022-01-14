@@ -12,19 +12,19 @@ contract Vault is ERC20,IVault {
     //Okto token
     IOktoCoin public immutable okto;
     //Total FTM in vault
-    uint256 public backing;
+    uint256 public override backing;
     //Amount to payout per staked okto ether per day
-    uint256 public constant dailyRewards = 250000 * 1 ether / uint256(5 * 5000000000 * 360);//1 year to pay out total gen 0 mint fee amount
+    uint256 public override constant dailyRewards = 250000 * 1 ether / uint256(5 * 5000000000 * 360);//1 year to pay out total gen 0 mint fee amount
     //Total amount to pay out per staked ether
-    uint256 public payoutAmount;
+    uint256 public override payoutAmount;
     //Total amount owed as payouts
-    uint256 public totalPayout;
+    uint256 public override totalPayout;
     //Total amount of okto deposited in vault
-    uint256 public totalDeposits;
+    uint256 public override totalDeposits;
     //Last time rewards were updated
-    uint256 public lastUpdateTimestamp;
+    uint256 public override lastUpdateTimestamp;
     //Claimable FTM debts
-    mapping(address => uint256) public debts;
+    mapping(address => uint256) public override debts;
     
     //Track deposits of each address
     mapping(address => Deposit) deposits;
@@ -49,7 +49,7 @@ contract Vault is ERC20,IVault {
         okto = IOktoCoin(_okto);
     }
     //Deposit okto to vault to start earning rewards
-    function depositOKT(uint256 _amount) external {
+    function depositOKT(uint256 _amount) external override {
         _claim(msg.sender);
         Deposit storage deposit = deposits[msg.sender];
         deposit.deposited = true;
@@ -59,14 +59,14 @@ contract Vault is ERC20,IVault {
         okto.safeTransferFrom(msg.sender, address(this), _amount);
     }
     //Withdraw okto from the vault
-    function withdrawOKT(uint256 _amount) external {
+    function withdrawOKT(uint256 _amount) external override {
         require(balanceOf(msg.sender) >= _amount);
         _claim(msg.sender);
         _burn(msg.sender, _amount);
         okto.safeTransfer(msg.sender, _amount);
     }
     //Claim rewards
-    function claimFTM() external {
+    function claimFTM() external override {
         _claim(msg.sender);
         uint256 debt = debts[msg.sender];
         debts[msg.sender] = 0;
@@ -89,11 +89,11 @@ contract Vault is ERC20,IVault {
         revert("Vault tokens cannot be transferred, withdraw to Okto first.");
     }
     //Add backing to vault
-    function addBacking() external payable {
+    function addBacking() external override payable {
         backing += msg.value;
     }
     //See rewards of address
-    function rewardsFTM(address _of) external view returns(uint256) {
+    function rewardsFTM(address _of) external override view returns(uint256) {
         Deposit storage deposit = deposits[_of];
         if(!deposit.deposited || payoutAmount > deposit.initialAmount) return debts[_of];
         uint256 rewards =  balanceOf(_of) * (payoutAmount - deposit.initialAmount) / 1 ether;

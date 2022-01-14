@@ -23,11 +23,11 @@ contract OktoCoin is ERC20,Ownable {
     function _afterTokenTransfer(
         address from,
         address to,
-        uint256 amount
+        uint256
     ) internal override {
-        if(revenueManager.lotteryComplete) return;
-        revenueManager.updateLottery(_from, balanceOf(_from));
-        revenueManager.updateLottery(_to, balanceOf(_to));
+        if(revenueManager.lotteryComplete()) return;
+        revenueManager.updateLottery(from, balanceOf(from));
+        revenueManager.updateLottery(to, balanceOf(to));
 
     }
 }

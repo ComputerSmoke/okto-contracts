@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/IRevenueManager.sol";
 import "../interfaces/IOktoCoin.sol";
+import "./libs/Entropy.sol";
 
 //Split revenue from the project amongst dev team
 contract RevenueManager is Ownable,IRevenueManager {
@@ -20,7 +21,7 @@ contract RevenueManager is Ownable,IRevenueManager {
     //Time at which contract was launched
     uint256 public immutable launchTime;
     //true if lottery has been completed or cancelled
-    bool public lotteryComplete;
+    bool public override lotteryComplete;
     //Minimum amount of time for minting before lottery cancelation is possible
     uint256 public constant minGen0Time = 7 days;
     //Index plus one of address in participants array
@@ -38,6 +39,7 @@ contract RevenueManager is Ownable,IRevenueManager {
     constructor(address _dev1, address _oktoCoin, uint256 _launchTime) Ownable() {
         dev1 = _dev1;
         oktoCoin = IOktoCoin(_oktoCoin);
+        launchTime = _launchTime;
     }
 
     function mintIncome() external override payable {
@@ -102,7 +104,7 @@ contract RevenueManager is Ownable,IRevenueManager {
         for(uint i = 0; i < 200; i++) {//Retry for winner until found, odds of hitting 200 fails are like nothing.
             uint256 winIdx = Entropy._random(_seed) % numParticipants;
             address winner = participants[winIdx];
-            if(okto.balanceOf(winner) > 500000 ether || Entropy._random(_seed+i+1) % 10 == 0) {
+            if(oktoCoin.balanceOf(winner) > 500000 ether || Entropy._random(_seed+i+1) % 10 == 0) {
                 payable(winner).transfer(lotteryAmount);
                 emit LotteryWinner(winner);
                 return;
