@@ -16,7 +16,13 @@ module.exports = {
   },
   networks: {
     hardhat: {
-      chainId: 1337
+      chainId: 1337,
+      accounts: {
+        accountsBalance: "1000000000000000000000000000"//1 billion ether
+      }
     }
+  },
+  mocha: {
+    timeout: 20000000000
   }
 };

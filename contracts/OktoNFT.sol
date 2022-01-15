@@ -1,15 +1,16 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "../interfaces/IOktoNFT.sol";
 import "../interfaces/IAquarium.sol";
 
 import "./libs/Entropy.sol";
+import "hardhat/console.sol";
 
-contract OktoNFT is ERC721,Ownable,IOktoNFT {
+contract OktoNFT is ERC721Enumerable,Ownable,IOktoNFT {
     /**
      * Traits are encoded as follows:
      * Each index corresponds to 42 NFTs, 6 bits for each. The values of the first 4 bits determine the number of traits
@@ -31,6 +32,11 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
     mapping(uint256 => uint256) idReplacements;
     //remaining to mint this generation
     uint16 remainingToMint;
+    //False if only whitelist can mint
+    bool public openMint;
+    //Root of whitelist merkle tree 
+    bytes32 public immutable merkleRoot;
+
     //Only allow aquarium to call this
     modifier onlyAquarium() {
         require(msg.sender == address(aquarium));
@@ -38,10 +44,12 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
     }
 
     constructor(
-        uint256[655] memory _traits
+        uint256[655] memory _traits,
+        bytes32 _merkleRoot
     ) ERC721("Okto", "OKT") Ownable() {
         genMintCaps = [5000, 15000, 22500, 27500];
         remainingToMint = genMintCaps[0];
+        merkleRoot = _merkleRoot;
         for(uint i = 0; i < 655; i++) traits[i] = _traits[i];
     }
     //Set aquarium pointer
@@ -62,6 +70,11 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
         uint256 excludedId = idReplacements[remainingToMint];
         if(excludedId == 0) excludedId = remainingToMint;
         idReplacements[idx] = excludedId;
+
+        if(remainingToMint == 0) {
+            currentGen++;
+            remainingToMint = getGenSize(currentGen);
+        }
 
         _safeMint(_recipient, id);
     }
@@ -91,10 +104,12 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
     function getTraits(uint256 _tokenId) external override view returns(uint8) {
         require(_exists(_tokenId), "This NFT is not minted");
 
-        uint idx = _tokenId / 42;//Index of full 256 bit entry containing the data we want
-        uint offset = _tokenId - idx;//Offset of the data we want within the 256 bit entry
+        uint256 idx = _tokenId / 42;//Index of full 256 bit entry containing the data we want
+        uint256 offset = _tokenId - idx*42;//Offset of the data we want within the 256 bit entry
 
-        return uint8((traits[idx] >> (4+(41-offset)*6)) & 0x3f);//Extract 6 bits at offset from entry
+        unchecked {
+            return uint8(uint256(traits[idx] >> (4+(41-offset)*6)) & 0x3f);//Extract 6 bits at offset from entry
+        }
     }
     //Get the generation of a token by its ID.
     function getGen(uint256 _tokenId) public override view returns(uint8) {
@@ -105,7 +120,7 @@ contract OktoNFT is ERC721,Ownable,IOktoNFT {
     }
     //Get the max number of mints in a generation
     function getGenSize(uint8 _gen) internal view returns(uint16) {
-        return genMintCaps[_gen] - _genStartIdx(_gen);
+        return _gen < 4 ? genMintCaps[_gen] - _genStartIdx(_gen) : 0;
     } 
     function _genStartIdx(uint8 _gen) internal view returns(uint16) {
         return _gen == 0 ? 0 : genMintCaps[_gen-1];

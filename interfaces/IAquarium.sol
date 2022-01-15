@@ -11,7 +11,11 @@ interface IAquarium {
     event Claim(uint256 tokenId, uint256 claimAmount, uint256 taxAmount, bool squid, bool unstaked);
     //Emitted on stake
     event Staked(address owner, uint256 tokenId, uint256 startValue);
-
+    //Owner functions
+    /**
+     * Open minting to non-whitelisted addresses
+     */
+    function setOpenMint() external;
     //Staking
     /**
      * Stake an octopus or squid. Staking earns rewards proportional to power level, 
@@ -34,10 +38,26 @@ interface IAquarium {
 
     //Minting
     /**
-     * Mint a new octopus or squid
+     * Mint new octopus or squid from gen 0 as a whitelisted address.
+     * @param _seed - seed to use for minting
+     * @param _merkleProof - Array of adjacent tree nodes to prove sender is in tree
+     * @param _leafNum - Index of leaf containing msg.sender address 0-N, where 0 is leftmost leaf
+     */
+    function mintWhitelist(
+        uint256 _seed, 
+        bytes32[] calldata _merkleProof, 
+        uint256 _leafNum
+    ) external payable;
+    /**
+     * Mint a new octopus or squid with FTM from generation 0
      * @param _seed - seed to use for minting
      */
-    function mint(uint256 _seed) external payable;
+    function mintGen0(uint256 _seed) external payable;
+    /**
+     * Mint new octopus or squid from gens 1-3 using $Okto
+     * @param _seed - seed to use for minting
+     */
+    function mintGenX(uint256 _seed) external;
 
     //Pure
     /**
@@ -84,6 +104,8 @@ interface IAquarium {
     //Array of squid IDs used to randomly select stealer of NFT.
     //NFTs not considered for this until they have been staked once.
     function squids(uint256 index) external view returns(uint256);
-    //Cost of minting NFT
+    //Cost of minting NFT with FTM
     function mintCost() external view returns(uint256);
+    //Cost of minting with Okto
+    function oktoMintCost() external view returns(uint256);
 }

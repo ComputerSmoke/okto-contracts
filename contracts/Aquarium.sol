@@ -2,14 +2,18 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
 import "../interfaces/IOktoCoin.sol";
 import "../interfaces/IRevenueManager.sol";
 import "../interfaces/IOktoNFT.sol";
 import "../interfaces/IAquarium.sol";
 import "./libs/Entropy.sol";
 
+import "hardhat/console.sol";
+
 //Mint/stake contract for okto NFTs
-contract Aquarium is ERC721Holder,IAquarium {
+contract Aquarium is ERC721Holder,IAquarium,Ownable {
     //ERC20 token contract
     IOktoCoin immutable oktoCoin;
     //Handles payouts to dev team
@@ -48,13 +52,22 @@ contract Aquarium is ERC721Holder,IAquarium {
     //Array of squid IDs used to randomly select stealer of NFT.
     //NFTs not considered for this until they have been staked once.
     uint256[] public override squids;
-    //Cost of minting NFT
-    uint256 public override constant mintCost = 25 ether;
+    //Cost of minting NFT gen0 (FTM)
+    uint256 public override constant mintCost = 50 ether;
+    //Cost of minting NFT gen1-3 (okto)
+    uint256 public override constant oktoMintCost = 100000 ether;
+
+    //Reentrancy lock on mint function
+    bool mintLock;
+    //False if only whitelist can mint
+    bool public openMint;
+    //Root of whitelist merkle tree 
+    bytes32 public immutable merkleRoot;
+
 
     //Require that msg.sender own the token, and generation is active
     modifier onlyTokenOwner(uint256 _tokenId) {
         require(oktoNFT.ownerOf(_tokenId) == msg.sender, "Message sender does not own this token");
-        require(oktoNFT.getGen(_tokenId) < oktoNFT.currentGen(), "This generation has yet to complete minting");
         _;
     }
     //Update total earnings based off current time
@@ -68,18 +81,21 @@ contract Aquarium is ERC721Holder,IAquarium {
                 totalOktoEarned = maxOkto;
             }
             lastClaimTimestamp = block.timestamp;
-        }
+        } else console.log("insufficient earnings time");
         _;
     }
 
     constructor(
         address _oktoNFT,
         address _oktoCoin,
-        address _revenueManager
-    ) {
+        address _revenueManager,
+        bytes32 _merkleRoot
+    ) Ownable() {
         oktoCoin = IOktoCoin(_oktoCoin);
         revenueManager = IRevenueManager(_revenueManager);
         oktoNFT = IOktoNFT(_oktoNFT);
+        lastClaimTimestamp = block.timestamp;
+        merkleRoot = _merkleRoot;
     }
     
     //Stake squid or octo
@@ -89,10 +105,16 @@ contract Aquarium is ERC721Holder,IAquarium {
         uint8 traits = oktoNFT.getTraits(_tokenId);
         bool squid = traits & 0xf > 5;//Squid if first 4 bits of traits > 5.
         Stake storage stake = stakes[_tokenId];
-        if(!stake.init) {
-            squids.push(_tokenId);//Add to squids array if not already in array
-            stake.init = true;
+        if(squid) {
+            if(!stake.init) {
+                squids.push(_tokenId);//Add to squids array if not already in array
+            }
+            squidPowerStaked += powerLevel(traits);
+        } else {
+            octoPowerStaked += powerLevel(traits);
         }
+        
+        stake.init = true;
         //Stake
         stake.lastClaimEarned = squid ? oktoStolen : oktoEarned;
         stake.staked = true;
@@ -102,7 +124,8 @@ contract Aquarium is ERC721Holder,IAquarium {
     function claimNFT(
         uint256 _tokenId
     ) external override onlyTokenOwner(_tokenId) {
-        (uint256 claimAmount, uint256 taxAmount, bool squid) = _claim(_tokenId, false, 0);
+        (uint256 claimAmount, uint256 taxAmount, bool squid,) = _claim(_tokenId, false, 0);
+        console.log("claimed for amount:",claimAmount - taxAmount);
         emit Claim(_tokenId, claimAmount, taxAmount, squid, false);
     }
     //Unstake and claim rewards from squid or octo
@@ -110,8 +133,9 @@ contract Aquarium is ERC721Holder,IAquarium {
         uint256 _tokenId, 
         uint256 _seed
     ) external override onlyTokenOwner(_tokenId) {
-        (uint256 claimAmount, uint256 taxAmount, bool squid) = _claim(_tokenId, true, _seed);
+        (uint256 claimAmount, uint256 taxAmount, bool squid, uint8 power) = _claim(_tokenId, true, _seed);
         stakes[_tokenId].staked = false;
+        squid ? squidPowerStaked -= power : octoPowerStaked -= power;//reduce power staked by amount
         emit Claim(_tokenId, claimAmount, taxAmount, squid, true);
     }
     /**
@@ -126,37 +150,69 @@ contract Aquarium is ERC721Holder,IAquarium {
         uint256 _tokenId, 
         bool _risk, 
         uint256 _seed
-    ) internal updateEarnings returns(uint256, uint256, bool) {
+    ) internal updateEarnings returns(uint256, uint256, bool, uint8) {
         Stake storage stake = stakes[_tokenId];
         require(stake.staked, "Token is not staked.");
 
         uint8 traits = oktoNFT.getTraits(_tokenId);
-        //bool squid = (traits & 0xf > 5) Squid if first 4 bits of traits > 5. 
 
         uint256 tax;
-        if(squidPowerStaked == 0) tax = 0;//If no squids staked, tax is always 0
+        if(squidPowerStaked == 0 || (traits & 0xf) > 5) tax = 0;//If no squids staked, tax is always 0
         else if(!_risk) tax = claimTax;
         else if(Entropy.random(_seed) % 100 < unstakeRisk) tax = 100;
 
-        uint256 totalEarned = (traits & 0xf > 5) ? oktoStolen : oktoEarned;
+        uint256 totalEarned = ((traits & 0xf) > 5) ? oktoStolen : oktoEarned;
         uint256 claimAmount = (totalEarned - stake.lastClaimEarned) * powerLevel(traits);
         tax = claimAmount * tax / 100;//taxAmount
         stake.lastClaimEarned = totalEarned;
         if(squidPowerStaked > 0) oktoStolen += tax / squidPowerStaked;
+
         oktoCoin.mint(oktoNFT.ownerOf(_tokenId), claimAmount - tax);
 
-        return (claimAmount, tax, traits & 0xf > 5);
+        return (claimAmount, tax, ((traits & 0xf) > 5), powerLevel(traits));
     }
 
     //Mint
-    function mint(uint256 _seed) external override payable {
+    function mintWhitelist(uint256 _seed, bytes32[] calldata _merkleProof, uint256 _leafNum) external override payable {
         require(msg.value >= mintCost, "Insufficient transfer value");
+        require(oktoNFT.currentGen() == 0, "Active generation is not 0, use mintGenX");
+        //Verify merkle proof
+        bytes32 lastNode = bytes32(bytes20(msg.sender));
+        unchecked {
+            for(uint256 i = 0; i < _merkleProof.length; i++) {
+                //Reading bits from lowest to highest tells us if leaf merges left or right this step
+                bool right = (_leafNum >> i) == 1;
+                lastNode = (right ? 
+                    keccak256(abi.encodePacked(_merkleProof[i], lastNode)) : 
+                    keccak256(abi.encodePacked(lastNode, _merkleProof[i]))
+                );
+            }
+        }
+        require(lastNode == merkleRoot, "Invalid merkle proof");
+        _mint(_seed, msg.sender);
+        revenueManager.mintIncome{value: msg.value}();
+    }
+    function mintGen0(uint256 _seed) external override payable {
+        require(msg.value >= mintCost, "Insufficient transfer value");
+        require(openMint, "Mint is currently whitelist only");
+        require(oktoNFT.currentGen() == 0, "Active generation is not 0, use mintGenX");
+        _mint(_seed, msg.sender);
+        revenueManager.mintIncome{value: msg.value}();
+    }
+    function mintGenX(uint256 _seed) external override {
+        require(!mintLock, "Reentrancy lock is active");
+        require(oktoNFT.currentGen() > 0, "Active generation is 0, use mintGen0");
+        mintLock = true;
+        _mint(_seed, msg.sender);
+        oktoCoin.burn(msg.sender, oktoMintCost);
+        mintLock = false;
+    }
+    function _mint(uint256 _seed, address _sender) internal {
         bool stolen = Entropy.random(_seed) % 10 == 0;
         address receiver;
         if(squids.length > 0 && stolen) receiver = oktoNFT.ownerOf(randomSquid(_seed+1));
-        else receiver = msg.sender;
-        oktoNFT.mint(receiver);
-        revenueManager.mintIncome{value: msg.value}();
+        else receiver = _sender;
+        oktoNFT.mint(receiver, _seed+2);
     }
 
     //Get a random squid, weighted by alpha level
@@ -173,6 +229,11 @@ contract Aquarium is ERC721Holder,IAquarium {
             if(Entropy.random(_seed+i*2+1) % maxSquidPower < power) return tokenId;
         }
         revert("Failed to pick squid");
+    }
+
+    //Open minting to all, not just whitelist
+    function setOpenMint() external override onlyOwner {
+        openMint = true;
     }
 
     //Get the power level of an octopus or squid based off its traits. This determines how efficiently they collect stakes.

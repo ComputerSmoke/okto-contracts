@@ -1,9 +1,9 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 
-interface IOktoNFT is IERC721 {
+interface IOktoNFT is IERC721Enumerable {
     //Events
     /**
      * Emitted when traits are set for a generation. Useful for community to then check against provenance hash

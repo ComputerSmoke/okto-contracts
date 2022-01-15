@@ -4,12 +4,15 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/IRevenueManager.sol";
 import "../interfaces/IOktoCoin.sol";
+import "../interfaces/IVault.sol";
 import "./libs/Entropy.sol";
 
 //Split revenue from the project amongst dev team
 contract RevenueManager is Ownable,IRevenueManager {
     //oktoCoin contract
     IOktoCoin public immutable oktoCoin;
+    //vault
+    IVault public immutable vault;
     //Address of dev to pay dev commission to
     address immutable dev1;
     //Balance available to pay out to all devs
@@ -36,25 +39,30 @@ contract RevenueManager is Ownable,IRevenueManager {
         _;
     }
 
-    constructor(address _dev1, address _oktoCoin) Ownable() {
+    constructor(address _dev1, address _oktoCoin, address _vault) Ownable() {
         dev1 = _dev1;
         oktoCoin = IOktoCoin(_oktoCoin);
         launchTime = block.timestamp;
+        vault = IVault(_vault);
     }
-
+    //Receive and handle gen0 mint payments
     function mintIncome() external override payable {
         uint256 value = msg.value;
-        if(!lotteryComplete && lotteryBalance < 10000 ether) {
+        uint256 vaultPortion;
+        if(!lotteryComplete && lotteryBalance < lotteryAmount) {
             lotteryBalance += value;
             if(lotteryBalance > lotteryAmount) {
                 value = lotteryBalance - lotteryAmount;
-                devBalance += value;
+                vaultPortion = value / 5;//20% fee
+                devBalance += value - vaultPortion;
                 lotteryBalance = lotteryAmount;
-            } else {
-                value = 0;
+                vault.addBacking{value: vaultPortion}();
             }
+        } else {
+            vaultPortion = value / 5;//20% fee
+            devBalance += value - vaultPortion;
+            vault.addBacking{value: vaultPortion}();
         }
-        devBalance += value;
     }
     //payout to devs
     function payout() external override {
