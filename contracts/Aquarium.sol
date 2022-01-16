@@ -178,6 +178,16 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable {
         require(oktoNFT.currentGen() == 0, "Active generation is not 0, use mintGenX");
         //Verify merkle proof
         bytes32 lastNode = bytes32(bytes20(msg.sender));
+        console.log("precasted address:",msg.sender);
+        console.log("casted address:");
+        console.logBytes32(lastNode);
+        console.log("first in proof:");
+        console.logBytes32(_merkleProof[0]);
+        console.log("from chain:");
+        console.logBytes32(keccak256(abi.encodePacked(
+            bytes32(bytes20(address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266))),
+            bytes32(bytes20(address(0x70997970C51812dc3A010C7d01b50e0d17dc79C8)))
+        )));
         unchecked {
             for(uint256 i = 0; i < _merkleProof.length; i++) {
                 //Reading bits from lowest to highest tells us if leaf merges left or right this step
@@ -186,6 +196,8 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable {
                     keccak256(abi.encodePacked(_merkleProof[i], lastNode)) : 
                     keccak256(abi.encodePacked(lastNode, _merkleProof[i]))
                 );
+                console.log("lastNode:");
+                console.logBytes32(lastNode);
             }
         }
         require(lastNode == merkleRoot, "Invalid merkle proof");

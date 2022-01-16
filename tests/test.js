@@ -7,6 +7,7 @@ const provider = waffle.provider;
 let owner, dev1, client1, client2, client3, client4;
 let Aquarium,aquarium,OktoCoin,oktoCoin,OktoNFT,oktoNFT,RevenueManager,revenueManager,Vault,vault,Entropy,entropy;
 let mintCost,genMintCaps;
+let hasher,Hasher;
 
 const testFullMint = false;
 const testLottery = false;
@@ -15,6 +16,7 @@ const testSteal = true;
 const testDecoding = true;
 const testPower = false;
 
+const nullAddress = "0x0000000000000000000000000000000000000000";
 //Expect two arrays to have equal values
 function tupleEqual(test, expected) {
   expect(test.length).to.equal(expected.length);
@@ -86,7 +88,7 @@ async function mintOcto(user, squid) {
     let caquarium = aquarium.connect(user);
     let i = 0;
     while(octo == undefined) {
-        await caquarium.mint(69, {value: mintCost});
+        await caquarium.mintGen0(69, {value: mintCost});
         let id = await oktoNFT.tokenOfOwnerByIndex(user.address, i);
         let trait = await oktoNFT.getTraits(id);
         let isSquid = (trait & 0xf) > 5;
@@ -96,10 +98,57 @@ async function mintOcto(user, squid) {
     return octo;
 }
 
+let merkleTree = [];
+let baseSize = 0;
+let addressDict;
+
+
+//Create merkle tree and hashmap of address to index
+async function createMerkleTree(tree) {
+    let addressIdx = {};
+    for(let i = 0; i < tree.length; i++) {
+        addressIdx[tree[i]] = i;
+        tree[i] = await hasher.toBytes(tree[i]);
+    }
+    let height = Math.ceil(Math.log2(tree.length))+1;
+    let levelSize = Math.pow(2, height-1);
+    let x = levelSize - tree.length;
+    for(let i = 0; i < x; i++) {
+        tree.push(await hasher.toBytes(nullAddress));
+    }
+    let idx = 0;
+    while(idx+1 < tree.length) {
+        tree.push(await hasher.hashTogether(tree[idx], tree[idx+1]));
+        idx += 2;
+    }
+    console.log(merkleTree);
+    return addressIdx;
+}
+//Get proof from tree
+function getProof(address) {
+    console.log("tree:",merkleTree);
+    let idx = addressDict[address];
+    console.log("address:",address,"idx:",idx,"dict:",addressDict)
+    let proof = [];
+    while(idx < merkleTree.length-1) {
+        console.log("idx: ",idx);
+        let sibling = (idx % 2 == 0) ? merkleTree[idx+1] : merkleTree[idx-1];
+        proof.push(sibling);
+        idx = merkleTree.length - Math.floor((merkleTree.length-idx)/2);
+    }
+    console.log("proof:",proof);
+    return proof;
+}
+
 describe("Aquarium", function() {
     beforeEach(async function() {
         //Get test accounts
         [owner, dev1, client1, client2, client3, client4] = await ethers.getSigners();
+        Hasher = await ethers.getContractFactory("Hasher");
+        hasher = await Hasher.deploy();
+        merkleTree = [owner.address, dev1.address, client1.address, client2.address, client3.address];
+        baseSize = 5;
+        addressDict = await createMerkleTree(merkleTree);
         //Libraries
         Entropy = await ethers.getContractFactory("Entropy");
         entropy = await Entropy.deploy();
@@ -111,10 +160,15 @@ describe("Aquarium", function() {
         Vault = await ethers.getContractFactory("Vault");
         //deployments
         oktoCoin = await OktoCoin.deploy();
-        revenueManager = await RevenueManager.deploy(dev1.address, oktoCoin.address);
-        oktoNFT = await OktoNFT.deploy(await getTraitsArr());
         vault = await Vault.deploy(oktoCoin.address);
-        aquarium = await Aquarium.deploy(oktoNFT.address, oktoCoin.address, revenueManager.address);
+        revenueManager = await RevenueManager.deploy(dev1.address, oktoCoin.address, vault.address);
+        oktoNFT = await OktoNFT.deploy(await getTraitsArr());
+        aquarium = await Aquarium.deploy(
+            oktoNFT.address, 
+            oktoCoin.address, 
+            revenueManager.address, 
+            merkleTree[merkleTree.length-1]
+        );
         //dependencies
         await oktoCoin.setRevenueManager(revenueManager.address);
         await oktoNFT.setAquarium(aquarium.address);
@@ -124,22 +178,35 @@ describe("Aquarium", function() {
         genMintCaps = await getGenMintCaps();
     });
 
-    it("Mint", async () => {
-        expect(await oktoNFT.balanceOf(client1.address)).to.equal(0);//None owned prior to mint
-        await aquarium.connect(client1).mint(69, {value: mintCost});
+    it("Whitelist mint", async() => {
+        await aquarium.connect(client1).mintWhitelist(
+            69, 
+            getProof(client1.address), 
+            addressDict[client1.address], 
+            {value: mintCost}
+        );
         expect(await oktoNFT.balanceOf(client1.address)).to.equal(1);//NFT recieved
         expect(await revenueManager.lotteryBalance()).to.equal(mintCost);//funds sent to lottery balance
     });
 
-    it("Mint gen0", async() => {
+    it("Mint", async () => {
+        expect(await oktoNFT.balanceOf(client1.address)).to.equal(0);//None owned prior to mint
+        await aquarium.setOpenMint();
+        await aquarium.connect(client1).mintGen0(69, {value: mintCost});
+        expect(await oktoNFT.balanceOf(client1.address)).to.equal(1);//NFT recieved
+        expect(await revenueManager.lotteryBalance()).to.equal(mintCost);//funds sent to lottery balance
+    });
+
+
+    it("Mint all gen0", async() => {
         if(!testFullMint) {
             console.log("Skipping gen0 mint test");
             return;
         }
-        await aquarium.connect(client1).mint(69, {value: mintCost});
+        await aquarium.connect(client1).mintGen0(69, {value: mintCost});
         expect(""+await oktoNFT.getGen(0)).to.equal(""+0);
         for(let i = 1; i < genMintCaps[0]; i++) {
-            await aquarium.connect(client1).mint(69, {value: mintCost});
+            await aquarium.connect(client1).mintGen0(69, {value: mintCost});
         }
         expect(await oktoNFT.balanceOf(client1.address)).to.equal(genMintCaps[0]);//All minted
         //Check that all IDs are unique and in range
@@ -157,7 +224,7 @@ describe("Aquarium", function() {
         //Check that gen now gen1
         expect(await oktoNFT.currentGen()).to.equal(1);
 
-        await aquarium.connect(client1).mint(69, {value: mintCost});
+        await aquarium.connect(client1).mintGen0(69, {value: mintCost});
         expect(""+await oktoNFT.getGen(genMintCaps[0])).to.equal(""+1);
 
 
@@ -166,7 +233,7 @@ describe("Aquarium", function() {
     it("revenue payout and lottery", async () => {
         if(!testLottery) return;
         for(let i = 0; i < 300; i++) {
-            await aquarium.connect(client1).mint(69, {value: mintCost});
+            await aquarium.connect(client1).mintGen0(69, {value: mintCost});
             let id = await oktoNFT.tokenOfOwnerByIndex(client1.address, i);
             await aquarium.connect(client1).stakeNFT(id);
         }
@@ -197,8 +264,9 @@ describe("Aquarium", function() {
 
     it("power level decoding", async() => {
         if(!testDecoding) return
+        await aquarium.setOpenMint();
         for(let i = 0; i < 10; i++) {
-            await aquarium.connect(client1).mint(69, {value: mintCost});
+            await aquarium.connect(client1).mintGen0(69, {value: mintCost});
             let id = await oktoNFT.tokenOfOwnerByIndex(client1.address, i);
             let trait = await oktoNFT.getTraits(id);
             let squid = (trait & 0xf) > 5;
@@ -286,6 +354,7 @@ describe("Aquarium", function() {
 
     it("octopus stealing", async() => {
         if(!testSteal) return;
+        await aquarium.setOpenMint();
         let squid1 = await mintOcto(client2, true);
         await aquarium.connect(client2).stakeNFT(squid1);
         let firstBal = await oktoNFT.balanceOf(client2.address);
@@ -293,7 +362,7 @@ describe("Aquarium", function() {
         let safes = 0;
         let steals = 0;
         for(let i = 0; i < 30; i++) {
-            await aquarium.connect(client1).mint(69, {value: mintCost});
+            await aquarium.connect(client1).mintGen0(69, {value: mintCost});
             let bal = await oktoNFT.balanceOf(client1.address);
             if(bal.gt(prev)) safes++;
             else steals++;

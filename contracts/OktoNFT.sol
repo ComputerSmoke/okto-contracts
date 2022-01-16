@@ -32,10 +32,6 @@ contract OktoNFT is ERC721Enumerable,Ownable,IOktoNFT {
     mapping(uint256 => uint256) idReplacements;
     //remaining to mint this generation
     uint16 remainingToMint;
-    //False if only whitelist can mint
-    bool public openMint;
-    //Root of whitelist merkle tree 
-    bytes32 public immutable merkleRoot;
 
     //Only allow aquarium to call this
     modifier onlyAquarium() {
@@ -44,12 +40,10 @@ contract OktoNFT is ERC721Enumerable,Ownable,IOktoNFT {
     }
 
     constructor(
-        uint256[655] memory _traits,
-        bytes32 _merkleRoot
+        uint256[655] memory _traits
     ) ERC721("Okto", "OKT") Ownable() {
         genMintCaps = [5000, 15000, 22500, 27500];
         remainingToMint = genMintCaps[0];
-        merkleRoot = _merkleRoot;
         for(uint i = 0; i < 655; i++) traits[i] = _traits[i];
     }
     //Set aquarium pointer
