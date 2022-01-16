@@ -7,6 +7,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/IOktoCoin.sol";
 import "../interfaces/IVault.sol";
 
+import "hardhat/console.sol";
+
 contract Vault is ERC20,IVault {
     using SafeERC20 for IOktoCoin;
     //Okto token
@@ -73,12 +75,14 @@ contract Vault is ERC20,IVault {
         payable(msg.sender).transfer(debt);
     }
     function _claim(address _recipient) internal updatePayout {
+        console.log("claiming");
         Deposit storage deposit = deposits[_recipient];
-        if(!deposit.deposited || payoutAmount > deposit.initialAmount) return;
+        if(!deposit.deposited || payoutAmount <= deposit.initialAmount) return;
         uint256 rewards =  balanceOf(_recipient) * (payoutAmount - deposit.initialAmount) / 1 ether;
         deposit.initialAmount = payoutAmount;
         backing -= rewards;
         debts[_recipient] += rewards;
+        console.log("rewards:",rewards);
     }
     //Do not allow for the transfer of vault tokens
     function _transfer (
