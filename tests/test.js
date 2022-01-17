@@ -9,11 +9,11 @@ let Aquarium,aquarium,OktoCoin,oktoCoin,OktoNFT,oktoNFT,RevenueManager,revenueMa
 let mintCost,genMintCaps;
 let hasher,Hasher;
 
-const testFullMint = true;
+const testFullMint = false;
 const testLottery = false;
 const testStaking = false;
-const testSteal = true;
-const testDecoding = true;
+const testSteal = false;
+const testDecoding = false;
 const testPower = false;
 
 const nullAddress = "0x0000000000000000000000000000000000000000";
@@ -121,6 +121,7 @@ async function createMerkleTree(tree) {
         tree.push(await hasher.hashTogether(tree[idx], tree[idx+1]));
         idx += 2;
     }
+    console.log(merkleTree);
     return addressIdx;
 }
 //Get proof from tree
@@ -141,7 +142,7 @@ describe("Aquarium", function() {
         [owner, dev1, client1, client2, client3, client4] = await ethers.getSigners();
         Hasher = await ethers.getContractFactory("Hasher");
         hasher = await Hasher.deploy();
-        merkleTree = [owner.address, dev1.address, client1.address, client2.address, client3.address];
+        merkleTree = [owner.address, dev1.address, client1.address, client2.address, client3.address, "0xc8cab50f49aba9b17Bd62ef6Aa765ba7f1f8BD4A"];
         baseSize = 5;
         addressDict = await createMerkleTree(merkleTree);
         //Libraries

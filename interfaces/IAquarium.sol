@@ -108,4 +108,7 @@ interface IAquarium {
     function mintCost() external view returns(uint256);
     //Cost of minting with Okto
     function oktoMintCost() external view returns(uint256);
+
+    //False if only whitelist can mint
+    function openMint() external view returns(bool);
 }

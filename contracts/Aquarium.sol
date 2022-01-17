@@ -60,7 +60,7 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable {
     //Reentrancy lock on mint function
     bool mintLock;
     //False if only whitelist can mint
-    bool public openMint;
+    bool public override openMint;
     //Root of whitelist merkle tree 
     bytes32 public immutable merkleRoot;
 
