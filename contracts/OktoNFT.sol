@@ -18,8 +18,6 @@ contract OktoNFT is ERC721Enumerable,Ownable,IOktoNFT {
      * 0 least rare, 2 most rare
      */
     uint256[655] public override traits;
-    //Next ID to mint
-    uint256 nextId;
     //Current 
     uint16[4] public override genMintCaps;
     //Current generation
@@ -31,7 +29,7 @@ contract OktoNFT is ERC721Enumerable,Ownable,IOktoNFT {
     //track minted IDs by pointing to the id which replaces them, and keeping track of number of ids
     mapping(uint256 => uint256) idReplacements;
     //remaining to mint this generation
-    uint16 remainingToMint;
+    uint16 public override remainingToMint;
 
     //Only allow aquarium to call this
     modifier onlyAquarium() {
@@ -52,7 +50,7 @@ contract OktoNFT is ERC721Enumerable,Ownable,IOktoNFT {
         aquarium = IAquarium(_aquarium);
     }
     //Mint NFT
-    function mint(address _recipient, uint256 _seed) external override onlyAquarium {
+    function mint(address _recipient, uint256 _seed) external override onlyAquarium returns(uint256) {
         require(currentGen < 4, "This generation has been fully minted");
         uint256 idx = _genStartIdx(currentGen) + Entropy.random(_seed) % remainingToMint;
         uint256 id = idReplacements[idx];
@@ -71,6 +69,7 @@ contract OktoNFT is ERC721Enumerable,Ownable,IOktoNFT {
         }
 
         _safeMint(_recipient, id);
+        return id;
     }
 
     function _baseURI() internal override view returns(string memory) {

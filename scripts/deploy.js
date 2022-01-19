@@ -1,14 +1,6 @@
 const crypto = require("crypto");
 
-async function deployNFT(account) {
-    let OktoNFT = await ethers.getContractFactory("OktoNFT");
-    console.log("account:",account.address)
-    let oktoNFT = await OktoNFT.deploy(
-        await getTraitsArr()
-    )
-    return oktoNFT;
-}
-
+//Convert hex string to decimal string
 function hexToDec(s) {
     var i, j, digits = [0], carry;
     for (i = 0; i < s.length; i += 1) {
@@ -25,7 +17,7 @@ function hexToDec(s) {
     }
     return digits.reverse().join('');
 }
-
+//Get random traits array as placeholder
 async function getTraitsArr() {
     let arr = [];
     for(let i = 0; i < 655; i++) {
@@ -33,7 +25,7 @@ async function getTraitsArr() {
             hexToDec(
                 await new Promise(res => {
                     crypto.randomBytes(32, (err, buf) => {
-                        res(buf.toString("hex"));
+/*PYRAMID OF DOOM*/     res(buf.toString("hex"));
                     });
                 })
             )
@@ -43,9 +35,30 @@ async function getTraitsArr() {
 }
 
 async function main() {
-    let [account] = await ethers.getSigners();
-    let oktoNFT = await deployNFT(account);
-    console.log(oktoNFT);
+    //Libraries
+    Entropy = await ethers.getContractFactory("Entropy");
+    entropy = await Entropy.deploy();
+    //factories
+    Aquarium = await ethers.getContractFactory("Aquarium", {libraries: {Entropy: entropy.address}});
+    OktoCoin = await ethers.getContractFactory("OktoCoin");
+    OktoNFT = await ethers.getContractFactory("OktoNFT", {libraries: {Entropy: entropy.address}});
+    RevenueManager = await ethers.getContractFactory("RevenueManager", {libraries: {Entropy: entropy.address}});
+    Vault = await ethers.getContractFactory("Vault");
+    //deployments
+    oktoCoin = await OktoCoin.deploy();
+    vault = await Vault.deploy(oktoCoin.address);
+    revenueManager = await RevenueManager.deploy("0x969eC4E98EF088d64C88521671306cA295Fd482e", oktoCoin.address, vault.address);
+    oktoNFT = await OktoNFT.deploy(await getTraitsArr());
+    aquarium = await Aquarium.deploy(
+        oktoNFT.address, 
+        oktoCoin.address, 
+        revenueManager.address, 
+        "0x2316f8e7b406f48fbb7da1e1c0d8620ed1d4813ed6d856b4e7b4a001faa47bb9"
+    );
+    //dependencies
+    await oktoCoin.setRevenueManager(revenueManager.address);
+    await oktoNFT.setAquarium(aquarium.address);
+    await oktoCoin.setAquarium(aquarium.address);
 }
 
 main()

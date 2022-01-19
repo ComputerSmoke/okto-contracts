@@ -11,6 +11,8 @@ interface IAquarium {
     event Claim(uint256 tokenId, uint256 claimAmount, uint256 taxAmount, bool squid, bool unstaked);
     //Emitted on stake
     event Staked(address owner, uint256 tokenId, uint256 startValue);
+    //Emitted on mint
+    event Mint(address minter, address receiver, uint256 id);
     //Owner functions
     /**
      * Open minting to non-whitelisted addresses
@@ -111,4 +113,7 @@ interface IAquarium {
 
     //False if only whitelist can mint
     function openMint() external view returns(bool);
+
+    //Stake info by id
+    function stakes(uint256 id) external view returns(uint256 lastClaimEarned, bool staked, bool init); 
 }

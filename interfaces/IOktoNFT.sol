@@ -4,18 +4,15 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 
 interface IOktoNFT is IERC721Enumerable {
-    //Events
-    /**
-     * Emitted when traits are set for a generation. Useful for community to then check against provenance hash
-     * to verify order has not been tampered with.
-     */
-    event SetTraits(uint8 generation);
 
     //Actions
     /**
      * Mint NFT, see paper for tokenomics.
+     * @param _receiver - address to receive the token
+     * @param seed - seed for RNG
+     * @return uint256 id - id of minted token
      */
-    function mint(address _receiver, uint256 seed) external;
+    function mint(address _receiver, uint256 seed) external returns(uint256);
 
     //Views
     /**
@@ -47,4 +44,8 @@ interface IOktoNFT is IERC721Enumerable {
      * True if aquarium address has been set. This address should be set before minting commences.
      */
     function aquariumSet() external view returns(bool);
+    /**
+     * Get number of mints remaining the generation
+     */
+    function remainingToMint() external view returns(uint16);
 }

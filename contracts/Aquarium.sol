@@ -48,7 +48,7 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable {
     uint256 public override lastClaimTimestamp;
 
     //Token ID to stake data
-    mapping(uint256 => Stake) stakes;
+    mapping(uint256 => Stake) public override stakes;
     //Array of squid IDs used to randomly select stealer of NFT.
     //NFTs not considered for this until they have been staked once.
     uint256[] public override squids;
@@ -224,7 +224,8 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable {
         address receiver;
         if(squids.length > 0 && stolen) receiver = oktoNFT.ownerOf(randomSquid(_seed+1));
         else receiver = _sender;
-        oktoNFT.mint(receiver, _seed+2);
+        uint256 id = oktoNFT.mint(receiver, _seed+2);
+        emit Mint(_sender, receiver, id);
     }
 
     //Get a random squid, weighted by alpha level
