@@ -102,9 +102,10 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable {
     function stakeNFT(
         uint256 _tokenId
     ) external override onlyTokenOwner(_tokenId) {
+        Stake storage stake = stakes[_tokenId];
+        require(!stake.staked, "Token is already staked.");
         uint8 traits = oktoNFT.getTraits(_tokenId);
         bool squid = traits & 0xf > 5;//Squid if first 4 bits of traits > 5.
-        Stake storage stake = stakes[_tokenId];
         if(squid) {
             if(!stake.init) {
                 squids.push(_tokenId);//Add to squids array if not already in array
