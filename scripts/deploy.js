@@ -1,5 +1,6 @@
 const crypto = require("crypto");
-
+const fs = require("fs");
+const randomTraits = false;
 //Convert hex string to decimal string
 function hexToDec(s) {
     var i, j, digits = [0], carry;
@@ -19,6 +20,12 @@ function hexToDec(s) {
 }
 //Get random traits array as placeholder
 async function getTraitsArr() {
+    return randomTraits ? await getRandomTraitsArr() : loadTraitsArr();
+}
+function loadTraitsArr() {
+    return JSON.parse(fs.readFileSync("metadata/encoding.json"));
+}
+async function getRandomTraitsArr() {
     let arr = [];
     for(let i = 0; i < 655; i++) {
         arr.push(
@@ -33,6 +40,7 @@ async function getTraitsArr() {
     }
     return arr;
 }
+
 
 async function main() {
     //Libraries

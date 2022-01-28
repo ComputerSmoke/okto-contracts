@@ -67,7 +67,7 @@ contract OktoNFT is ERC721Enumerable,Ownable,IOktoNFT {
             currentGen++;
             remainingToMint = getGenSize(currentGen);
         }
-
+        console.log("minted with id",id);
         _safeMint(_recipient, id);
         return id;
     }

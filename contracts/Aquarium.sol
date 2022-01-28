@@ -125,6 +125,7 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable {
     function claimNFT(
         uint256 _tokenId
     ) external override onlyTokenOwner(_tokenId) {
+        require(stakes[_tokenId].staked, "Token is not staked.");
         (uint256 claimAmount, uint256 taxAmount, bool squid,) = _claim(_tokenId, false, 0);
         console.log("claimed for amount:",claimAmount - taxAmount);
         emit Claim(_tokenId, claimAmount, taxAmount, squid, false);
@@ -134,6 +135,7 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable {
         uint256 _tokenId, 
         uint256 _seed
     ) external override onlyTokenOwner(_tokenId) {
+        require(stakes[_tokenId].staked, "Token is not staked.");
         (uint256 claimAmount, uint256 taxAmount, bool squid, uint8 power) = _claim(_tokenId, true, _seed);
         stakes[_tokenId].staked = false;
         squid ? squidPowerStaked -= power : octoPowerStaked -= power;//reduce power staked by amount

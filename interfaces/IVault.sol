@@ -42,14 +42,12 @@ interface IVault is IERC20 {
     function rewardsFTM(address _of) external view returns(uint256);
     //Total FTM in vault
     function backing() external view returns(uint256);
-    //Amount to payout per staked okto ether per day
-    function dailyRewards() external view returns(uint256);
+    //How many seconds it takes to pay out 1 FTM per staked okto
+    function payoutTime() external view returns(uint256);
     //Total amount to pay out per staked ether
     function payoutAmount() external view returns(uint256);
     //Total amount owed as payouts
     function totalPayout() external view returns(uint256);
-    //Total amount of okto deposited in vault
-    function totalDeposits() external view returns(uint256);
     //Last time rewards were updated
     function lastUpdateTimestamp() external view returns(uint256);
     //Claimable FTM debt by address

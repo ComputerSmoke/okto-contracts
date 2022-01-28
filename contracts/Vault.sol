@@ -8,21 +8,21 @@ import "../interfaces/IOktoCoin.sol";
 import "../interfaces/IVault.sol";
 
 import "hardhat/console.sol";
-
+//TODO: Debug overflow on claim / withdraw
 contract Vault is ERC20,IVault {
     using SafeERC20 for IOktoCoin;
     //Okto token
     IOktoCoin public immutable okto;
     //Total FTM in vault
     uint256 public override backing;
-    //Amount to payout per staked okto ether per day
-    uint256 public override constant dailyRewards = 250000 * 1 ether / uint256(5 * 5000000000 * 360);//1 year to pay out total gen 0 mint fee amount
+    //Total FTM ever held in vault
+    uint256 totalEverBacking;
+    //Time to payout 1 FTM per staked Okto
+    uint256 public override constant payoutTime = (5*10**9)/48000 * 360 days;//1 year to pay out total gen 0 mint fee amount
     //Total amount to pay out per staked ether
     uint256 public override payoutAmount;
     //Total amount owed as payouts
     uint256 public override totalPayout;
-    //Total amount of okto deposited in vault
-    uint256 public override totalDeposits;
     //Last time rewards were updated
     uint256 public override lastUpdateTimestamp;
     //Claimable FTM debts
@@ -35,13 +35,20 @@ contract Vault is ERC20,IVault {
     modifier updatePayout() {
         if(lastUpdateTimestamp < block.timestamp) {
             uint256 delta = block.timestamp - lastUpdateTimestamp;
-            uint256 amount = dailyRewards * delta / 1 days;
-            totalPayout += amount * totalDeposits;
-            payoutAmount += amount;
-            if(totalPayout > backing) {//Do not owe more than we have
-                payoutAmount -= (totalPayout - backing) / totalDeposits;
-                totalPayout = backing;
+            uint256 amount = 1 ether * delta / payoutTime;
+            console.log("amount:",amount);
+            uint256 supply = totalSupply();
+            console.log("totalPayout:",totalPayout);
+            console.log("totalEverBacking:",totalEverBacking);
+            if(totalPayout + (amount * supply) > totalEverBacking) {//Do not owe more than we have
+                amount = (totalEverBacking - totalPayout) / supply;
+                console.log("adjustedAmount:",amount);
             }
+            totalPayout += amount * totalSupply();
+            payoutAmount += amount;
+            console.log("totalPayout:",totalPayout);
+            console.log("payoutAmount:",payoutAmount);
+            console.log("totalEverBacking:",totalEverBacking);
             lastUpdateTimestamp = block.timestamp;
         }
         _;
@@ -55,15 +62,18 @@ contract Vault is ERC20,IVault {
         _claim(msg.sender);
         Deposit storage deposit = deposits[msg.sender];
         deposit.deposited = true;
-        deposit.initialAmount = payoutAmount;
 
         _mint(msg.sender, _amount);
         okto.safeTransferFrom(msg.sender, address(this), _amount);
     }
     //Withdraw okto from the vault
     function withdrawOKT(uint256 _amount) external override {
+        Deposit storage deposit = deposits[msg.sender];
+        require(deposit.deposited, "Okto not deposited");
         require(balanceOf(msg.sender) >= _amount);
         _claim(msg.sender);
+        deposit.deposited = false;
+
         _burn(msg.sender, _amount);
         okto.safeTransfer(msg.sender, _amount);
     }
@@ -77,12 +87,16 @@ contract Vault is ERC20,IVault {
     function _claim(address _recipient) internal updatePayout {
         console.log("claiming");
         Deposit storage deposit = deposits[_recipient];
-        if(!deposit.deposited || payoutAmount <= deposit.initialAmount) return;
-        uint256 rewards =  balanceOf(_recipient) * (payoutAmount - deposit.initialAmount) / 1 ether;
+        if(payoutAmount <= deposit.initialAmount) return;
         deposit.initialAmount = payoutAmount;
+        if(!deposit.deposited) return;
+        console.log("no return");
+        uint256 rewards = balanceOf(_recipient) * (payoutAmount - deposit.initialAmount) / 1 ether;
+        console.log("rewards:",rewards);
+        console.log("backing:",backing);
         backing -= rewards;
         debts[_recipient] += rewards;
-        console.log("rewards:",rewards);
+        console.log("claimed");
     }
     //Do not allow for the transfer of vault tokens
     function _transfer (
@@ -95,6 +109,7 @@ contract Vault is ERC20,IVault {
     //Add backing to vault
     function addBacking() external override payable {
         backing += msg.value;
+        totalEverBacking += msg.value;
     }
     //See rewards of address
     function rewardsFTM(address _of) external override view returns(uint256) {

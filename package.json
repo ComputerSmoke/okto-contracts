@@ -23,6 +23,7 @@
     "@openzeppelin/contracts": "^4.4.1",
     "chai": "^4.3.4",
     "crypto": "^1.0.1",
+    "fs": "^0.0.1-security",
     "hardhat": "^2.8.2"
   }
 }
