@@ -20,5 +20,5 @@ interface IRevenueManager {
     //Add/remove user to lottery based off their balance. Called by oktoCoin contract
     function updateLottery(address _user, uint256 _balance) external;
     //Run the lottery if it is funded or expire it if it is expired
-    function runLottery(uint256 _seed) external;
+    function runLottery(uint128 _seed) external payable;
 }

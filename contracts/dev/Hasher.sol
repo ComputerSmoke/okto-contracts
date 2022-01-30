@@ -13,4 +13,7 @@ contract Hasher {
     function hashTogether(bytes32 v1, bytes32 v2) external pure returns(bytes32) {
         return keccak256(abi.encodePacked(v1, v2));
     }
+    function hashSeed(uint128 _seed) external pure returns(bytes32) {
+        return keccak256(abi.encodePacked(_seed));
+    }
 }

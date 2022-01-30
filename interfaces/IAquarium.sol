@@ -7,6 +7,11 @@ interface IAquarium {
         bool staked;//True if currently staked
         bool init;//True if nft has ever been staked
     }
+    struct RandomRequest {
+        address sender;//Sender of transaction
+        bool isMint;//False if for unstake, true otherwise
+        uint256 id;//0 if mint, id of token if unstake
+    }
     //Emitted when stake rewards claimed
     event Claim(uint256 tokenId, uint256 claimAmount, uint256 taxAmount, bool squid, bool unstaked);
     //Emitted on stake
@@ -36,7 +41,7 @@ interface IAquarium {
      * @param _tokenId - ID of token to unstake
      * @param _seed - seed to use for random generation of theft
      */
-    function unstakeNFT(uint256 _tokenId, uint256 _seed) external;
+    function unstakeNFT(uint256 _tokenId, uint128 _seed) external payable;
 
     //Minting
     /**
@@ -46,7 +51,7 @@ interface IAquarium {
      * @param _leafNum - Index of leaf containing msg.sender address 0-N, where 0 is leftmost leaf
      */
     function mintWhitelist(
-        uint256 _seed, 
+        uint128 _seed, 
         bytes32[] calldata _merkleProof, 
         uint256 _leafNum
     ) external payable;
@@ -54,12 +59,12 @@ interface IAquarium {
      * Mint a new octopus or squid with FTM from generation 0
      * @param _seed - seed to use for minting
      */
-    function mintGen0(uint256 _seed) external payable;
+    function mintGen0(uint128 _seed) external payable;
     /**
      * Mint new octopus or squid from gens 1-3 using $Okto
      * @param _seed - seed to use for minting
      */
-    function mintGenX(uint256 _seed) external;
+    function mintGenX(uint128 _seed) external payable;
 
     //Pure
     /**

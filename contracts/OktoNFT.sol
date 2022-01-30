@@ -7,7 +7,6 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/IOktoNFT.sol";
 import "../interfaces/IAquarium.sol";
 
-import "./libs/Entropy.sol";
 import "hardhat/console.sol";
 
 contract OktoNFT is ERC721Enumerable,Ownable,IOktoNFT {
@@ -50,9 +49,9 @@ contract OktoNFT is ERC721Enumerable,Ownable,IOktoNFT {
         aquarium = IAquarium(_aquarium);
     }
     //Mint NFT
-    function mint(address _recipient, uint256 _seed) external override onlyAquarium returns(uint256) {
+    function mint(address _recipient, uint256 _rand) external override onlyAquarium returns(uint256) {
         require(currentGen < 4, "This generation has been fully minted");
-        uint256 idx = _genStartIdx(currentGen) + Entropy.random(_seed) % remainingToMint;
+        uint256 idx = _genStartIdx(currentGen) + _rand % remainingToMint;
         uint256 id = idReplacements[idx];
         if(id == 0) {//Id not replaced, so idx is id.
             id = idx;
@@ -67,7 +66,6 @@ contract OktoNFT is ERC721Enumerable,Ownable,IOktoNFT {
             currentGen++;
             remainingToMint = getGenSize(currentGen);
         }
-        console.log("minted with id",id);
         _safeMint(_recipient, id);
         return id;
     }

@@ -8,12 +8,13 @@ import "../interfaces/IOktoCoin.sol";
 import "../interfaces/IRevenueManager.sol";
 import "../interfaces/IOktoNFT.sol";
 import "../interfaces/IAquarium.sol";
-import "./libs/Entropy.sol";
+import "../interfaces/IRandomOracleUser.sol";
+import "../interfaces/IRandomOracle.sol";
 
 import "hardhat/console.sol";
 
 //Mint/stake contract for okto NFTs
-contract Aquarium is ERC721Holder,IAquarium,Ownable {
+contract Aquarium is ERC721Holder,IAquarium,Ownable,IRandomOracleUser {
     //ERC20 token contract
     IOktoCoin immutable oktoCoin;
     //Handles payouts to dev team
@@ -64,6 +65,12 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable {
     //Root of whitelist merkle tree 
     bytes32 public immutable merkleRoot;
 
+    //Mints pending randomness fulfillment
+    mapping(uint256 => RandomRequest) pendingRandom;
+    //Number of mints pending randomness fulfillment
+    uint256 pendingMintCount;
+    //Randomness oracle
+    IRandomOracle randomOracle;
 
     //Require that msg.sender own the token, and generation is active
     modifier onlyTokenOwner(uint256 _tokenId) {
@@ -84,16 +91,23 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable {
         } else console.log("insufficient earnings time");
         _;
     }
+    //Only random oracle, for fulfillment of randomness:
+    modifier onlyRandomOracle() {
+        require(msg.sender == address(randomOracle));
+        _;
+    }
 
     constructor(
         address _oktoNFT,
         address _oktoCoin,
         address _revenueManager,
+        address _randomOracle,
         bytes32 _merkleRoot
     ) Ownable() {
         oktoCoin = IOktoCoin(_oktoCoin);
         revenueManager = IRevenueManager(_revenueManager);
         oktoNFT = IOktoNFT(_oktoNFT);
+        randomOracle = IRandomOracle(_randomOracle);
         lastClaimTimestamp = block.timestamp;
         merkleRoot = _merkleRoot;
     }
@@ -127,24 +141,21 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable {
     ) external override onlyTokenOwner(_tokenId) {
         require(stakes[_tokenId].staked, "Token is not staked.");
         (uint256 claimAmount, uint256 taxAmount, bool squid,) = _claim(_tokenId, false, 0);
-        console.log("claimed for amount:",claimAmount - taxAmount);
         emit Claim(_tokenId, claimAmount, taxAmount, squid, false);
     }
     //Unstake and claim rewards from squid or octo
     function unstakeNFT(
         uint256 _tokenId, 
-        uint256 _seed
-    ) external override onlyTokenOwner(_tokenId) {
+        uint128 _seed
+    ) external override payable onlyTokenOwner(_tokenId) {
         require(stakes[_tokenId].staked, "Token is not staked.");
-        (uint256 claimAmount, uint256 taxAmount, bool squid, uint8 power) = _claim(_tokenId, true, _seed);
-        stakes[_tokenId].staked = false;
-        squid ? squidPowerStaked -= power : octoPowerStaked -= power;//reduce power staked by amount
-        emit Claim(_tokenId, claimAmount, taxAmount, squid, true);
+        uint256 id = randomOracle.requestRandomness{value: msg.value}(_seed);
+        pendingRandom[id] = RandomRequest(msg.sender, false, _tokenId);
     }
     /**
      * @param _tokenId - ID of token to stake
      * @param _risk - true if risking (unstaking)
-     * @param _seed - seed to use for random number generation
+     * @param _rand - random number from oracle
      * @return uint256 - amount claimed
      * @return uint256 - tax amount
      * @return bool - true if token was squid
@@ -152,7 +163,7 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable {
     function _claim(
         uint256 _tokenId, 
         bool _risk, 
-        uint256 _seed
+        uint256 _rand
     ) internal updateEarnings returns(uint256, uint256, bool, uint8) {
         Stake storage stake = stakes[_tokenId];
         require(stake.staked, "Token is not staked.");
@@ -162,7 +173,7 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable {
         uint256 tax;
         if(squidPowerStaked == 0 || (traits & 0xf) > 5) tax = 0;//If no squids staked, tax is always 0
         else if(!_risk) tax = claimTax;
-        else if(Entropy.random(_seed) % 100 < unstakeRisk) tax = 100;
+        else if(_rand % 100 < unstakeRisk) tax = 100;
 
         uint256 totalEarned = ((traits & 0xf) > 5) ? oktoStolen : oktoEarned;
         uint256 claimAmount = (totalEarned - stake.lastClaimEarned) * powerLevel(traits);
@@ -176,7 +187,7 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable {
     }
 
     //Mint
-    function mintWhitelist(uint256 _seed, bytes32[] calldata _merkleProof, uint256 _leafNum) external override payable {
+    function mintWhitelist(uint128 _seed, bytes32[] calldata _merkleProof, uint256 _leafNum) external override payable {
         require(msg.value >= mintCost, "Insufficient transfer value");
         require(oktoNFT.currentGen() == 0, "Active generation is not 0, use mintGenX");
         //Verify merkle proof
@@ -207,14 +218,13 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable {
         _mint(_seed, msg.sender);
         revenueManager.mintIncome{value: msg.value}();
     }
-    function mintGen0(uint256 _seed) external override payable {
+    function mintGen0(uint128 _seed) external override payable {
         require(msg.value >= mintCost, "Insufficient transfer value");
-        require(openMint, "Mint is currently whitelist only");
         require(oktoNFT.currentGen() == 0, "Active generation is not 0, use mintGenX");
         _mint(_seed, msg.sender);
-        revenueManager.mintIncome{value: msg.value}();
+        revenueManager.mintIncome{value: msg.value - 0.5 ether}();
     }
-    function mintGenX(uint256 _seed) external override {
+    function mintGenX(uint128 _seed) external override payable {
         require(!mintLock, "Reentrancy lock is active");
         require(oktoNFT.currentGen() > 0, "Active generation is 0, use mintGen0");
         mintLock = true;
@@ -222,27 +232,55 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable {
         oktoCoin.burn(msg.sender, oktoMintCost);
         mintLock = false;
     }
-    function _mint(uint256 _seed, address _sender) internal {
-        bool stolen = Entropy.random(_seed) % 10 == 0;
+    function _mint(uint128 _seed, address _sender) internal {
+        require(oktoNFT.remainingToMint() - pendingMintCount > 0, "This generation has been fully minted");
+        require(msg.value >= 0.5 ether, "Insufficient transfer amount for randomness");
+        uint256 id = randomOracle.requestRandomness{value: 0.5 ether}(_seed);
+        pendingMintCount++;
+        pendingRandom[id] = RandomRequest(_sender, true, 0);
+    }
+    //On randomness fulfilled
+    function fulfillRandomness(uint256 _id, uint256 _rand) external override onlyRandomOracle {
+        RandomRequest storage randomRequest = pendingRandom[_id];
+        randomRequest.isMint ? 
+            _completeMint(randomRequest.sender, _rand) : 
+            _completeUnstake(randomRequest.id, _rand);
+    }
+    //Complete minting process when randomness received
+    function _completeMint(address _sender, uint256 _rand) internal {
+        //Use random number like a seed
+        uint256 num = uint256(keccak256(abi.encodePacked(_rand)));
+        bool stolen = num % 10 == 0;
         address receiver;
-        if(squids.length > 0 && stolen) receiver = oktoNFT.ownerOf(randomSquid(_seed+1));
+        if(squids.length > 0 && stolen) {
+            receiver = oktoNFT.ownerOf(randomSquid(num));
+            num = uint256(keccak256(abi.encodePacked(_rand+1)));
+        }
         else receiver = _sender;
-        uint256 id = oktoNFT.mint(receiver, _seed+2);
+        uint256 id = oktoNFT.mint(receiver, _rand);
+        pendingMintCount--;
         emit Mint(_sender, receiver, id);
+    }
+    //Complete unstake process when randomness received
+    function _completeUnstake(uint256 _tokenId, uint256 _rand) internal {
+        (uint256 claimAmount, uint256 taxAmount, bool squid, uint8 power) = _claim(_tokenId, true, _rand);
+        stakes[_tokenId].staked = false;
+        squid ? squidPowerStaked -= power : octoPowerStaked -= power;//reduce power staked by amount
+        emit Claim(_tokenId, claimAmount, taxAmount, squid, true);
     }
 
     //Get a random squid, weighted by alpha level
-    function randomSquid(uint256 _seed) internal view returns(uint256) {
+    function randomSquid(uint256 _rand) internal view returns(uint256) {
         uint256 numSquids = squids.length;
         require(numSquids > 0, "No squids to choose from.");
         //Loop until we decide to keep the squid we land on. If all squids have min power, we expect about 5 iterations.
         //Stop if we somehow reach 200 iterations, which is orders of magnitude less likely than being hit by lightning tomorrow.
         for(uint i = 0; i < 200; i++) {
-            uint256 tokenId = squids[Entropy.random(_seed+i*2) % numSquids];
+            uint256 tokenId = squids[uint256(keccak256(abi.encodePacked(_rand+i*2))) % numSquids];
             uint8 power = powerLevel(oktoNFT.getTraits(tokenId));
             //Keep this token with likelyhood proportional to its power level, giving those with higher power
             //proportionally higher chance of being chosen.
-            if(Entropy.random(_seed+i*2+1) % maxSquidPower < power) return tokenId;
+            if(uint256(keccak256(abi.encodePacked(_rand+i*2+1))) % maxSquidPower < power) return tokenId;
         }
         revert("Failed to pick squid");
     }

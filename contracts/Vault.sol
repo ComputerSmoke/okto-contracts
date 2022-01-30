@@ -37,14 +37,15 @@ contract Vault is ERC20,IVault {
             uint256 delta = block.timestamp - lastUpdateTimestamp;
             uint256 amount = 1 ether * delta / payoutTime;
             console.log("amount:",amount);
-            uint256 supply = totalSupply();
+            uint256 supply = 1 + (totalSupply() / 1 ether);
+            console.log("supply:",supply);
             console.log("totalPayout:",totalPayout);
             console.log("totalEverBacking:",totalEverBacking);
             if(totalPayout + (amount * supply) > totalEverBacking) {//Do not owe more than we have
                 amount = (totalEverBacking - totalPayout) / supply;
                 console.log("adjustedAmount:",amount);
             }
-            totalPayout += amount * totalSupply();
+            totalPayout += amount * supply;
             payoutAmount += amount;
             console.log("totalPayout:",totalPayout);
             console.log("payoutAmount:",payoutAmount);
@@ -65,6 +66,7 @@ contract Vault is ERC20,IVault {
 
         _mint(msg.sender, _amount);
         okto.safeTransferFrom(msg.sender, address(this), _amount);
+        console.log("deposited");
     }
     //Withdraw okto from the vault
     function withdrawOKT(uint256 _amount) external override {
@@ -86,16 +88,22 @@ contract Vault is ERC20,IVault {
     }
     function _claim(address _recipient) internal updatePayout {
         console.log("claiming");
+        console.log("payout:",payoutAmount);
         Deposit storage deposit = deposits[_recipient];
+        console.log("init:",deposit.initialAmount);
         if(payoutAmount <= deposit.initialAmount) return;
-        deposit.initialAmount = payoutAmount;
-        if(!deposit.deposited) return;
+        if(!deposit.deposited) {
+            deposit.initialAmount = payoutAmount;
+            return;
+        }
         console.log("no return");
-        uint256 rewards = balanceOf(_recipient) * (payoutAmount - deposit.initialAmount) / 1 ether;
+        console.log("bal:",balanceOf(_recipient));
+        uint256 rewards = (balanceOf(_recipient) * (payoutAmount - deposit.initialAmount)) / 1 ether;
         console.log("rewards:",rewards);
         console.log("backing:",backing);
         backing -= rewards;
         debts[_recipient] += rewards;
+        deposit.initialAmount = payoutAmount;
         console.log("claimed");
     }
     //Do not allow for the transfer of vault tokens

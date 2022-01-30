@@ -28,8 +28,6 @@ contract OktoCoin is ERC20,Ownable {
     }
     //Mint new tokens to an address. Owner is Aquarium, so only Aquarium can mint like this.
     function mint(address _recipient, uint256 _amount) external onlyAquarium {
-        console.log("minting to",_recipient);
-        console.log("mint amount",_amount);
         _mint(_recipient, _amount);
     }
     //Toast some tokens. Only Aquarium can do this.
