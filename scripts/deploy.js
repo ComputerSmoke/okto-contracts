@@ -82,6 +82,14 @@ async function deploy(devAddress) {
         await oktoNFT.uploadMetadata(traits.slice(i*65, (i+1)*65));
     }
     await oktoNFT.uploadMetadata(traits.slice(650, 655));
+    console.log(
+        "oracle",randomOracle.address,"\n",
+        "coin:",oktoCoin.address,"\n",
+        "vault",vault.address,"\n",
+        "revenue",revenueManager.address,"\n",
+        "nft",oktoNFT.address,"\n",
+        "aquarium",aquarium.address
+    )
     return ([
         randomOracle,
         oktoCoin,

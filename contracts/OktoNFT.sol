@@ -77,7 +77,13 @@ contract OktoNFT is ERC721Enumerable,Ownable,IOktoNFT {
     }
 
     function _baseURI() internal override view returns(string memory) {
-        return "";//TODO: add uri
+        return "ipfs://bafybeigndc67uel63muegnrzmo2qegwhgj7k2744qzdnrymyl3k4jcml5a/";
+    }
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
+
+        string memory baseURI = _baseURI();
+        return bytes(baseURI).length > 0 ? string(abi.encodePacked(baseURI, uintToString(tokenId), ".json")) : "";
     }
 
     //Convert int to string

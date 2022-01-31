@@ -54,7 +54,7 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable,IRandomOracleUser {
     //NFTs not considered for this until they have been staked once.
     uint256[] public override squids;
     //Cost of minting NFT gen0 (FTM)
-    uint256 public override constant mintCost = 50 ether;
+    uint256 public override constant mintCost = 0.5 ether;
     //Cost of minting NFT gen1-3 (okto)
     uint256 public override constant oktoMintCost = 100000 ether;
 
@@ -244,6 +244,8 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable,IRandomOracleUser {
     //On randomness fulfilled
     function fulfillRandomness(uint256 _id, uint256 _rand) external override onlyRandomOracle {
         RandomRequest storage randomRequest = pendingRandom[_id];
+        require(randomRequest.sender != address(0), "request does not exist");
+        randomRequest.sender = address(0);
         randomRequest.isMint ? 
             _completeMint(randomRequest.sender, _rand) : 
             _completeUnstake(randomRequest.id, _rand);

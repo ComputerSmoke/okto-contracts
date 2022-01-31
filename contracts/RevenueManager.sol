@@ -142,6 +142,7 @@ contract RevenueManager is Ownable,IRevenueManager,IRandomOracleUser {
     //Randomness fulfilled for lottery
     function fulfillRandomness(uint256, uint256 _rand) external override {
         require(msg.sender == address(randomOracle), "Oracle only");
+        require(!lotteryComplete, "Lottery already run.");
         console.log("running lottery");
         for(uint i = 0; i < 200; i++) {//Retry for winner until found, odds of hitting 200 fails are like nothing.
             uint256 winIdx = uint256(keccak256(abi.encodePacked(_rand+(i*2)))) % numParticipants;
