@@ -4,7 +4,7 @@ const mode = "local";
 let randomOracleAddress;
 
 if(mode == "test") randomOracleAddress = "0xdC7129f2707a9035179515b89B9aD82A6f749c1E";
-else if(mode == "local") randomOracleAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+else if(mode == "local") randomOracleAddress = "0x79A644e11Ec6B84C85345c2e64cB3226cf997159";
 
 async function main() {
     let randomOracle = await ethers.getContractAt("IRandomOracle", randomOracleAddress);

@@ -16,7 +16,7 @@ contract OktoCoin is ERC20,Ownable {
         _;
     }
 
-    constructor() ERC20("Oktopus", "$OKT") Ownable() {}
+    constructor() ERC20("$FOOD", "$FD") Ownable() {}
 
     function setRevenueManager(address _revenueManager) external onlyOwner {
         require(address(revenueManager) == address(0), "Revenue manager already set.");
