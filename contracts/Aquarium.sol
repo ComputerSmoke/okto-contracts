@@ -214,9 +214,11 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable,IRandomOracleUser {
                 console.logBytes32(lastNode);
             }
         }
+        console.log("read proof");
         require(lastNode == merkleRoot, "Invalid merkle proof");
+        console.log("valid proof");
         _mint(_seed, msg.sender);
-        revenueManager.mintIncome{value: msg.value}();
+        revenueManager.mintIncome{value: msg.value - 0.5 ether}();
     }
     function mintGen0(uint128 _seed) external override payable {
         require(msg.value >= mintCost, "Insufficient transfer value");

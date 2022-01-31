@@ -5,6 +5,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/IRandomOracleUser.sol";
 import "../interfaces/IRandomOracle.sol";
 
+import "hardhat/console.sol";
+
 contract RandomOracle is Ownable,IRandomOracle {
     //Number of hashes ready to be fulfilled
     uint256 public override numPosted;
@@ -48,9 +50,11 @@ contract RandomOracle is Ownable,IRandomOracle {
     }
     //Oracle fulfills pending randomness request
     function fulfillRandomness(uint128 _seed, uint256 _id) external override onlyOwner {
-        require(_id >= numFulfilled, "Request already fulfilled");
-        require(_id < numPending, "Request does not exist");
+        console.log("num:",uint256(_seed));
+        console.log("id:",_id);
         bytes32 sentHash = keccak256(abi.encodePacked(_seed));
+        console.log(uint256(sentHash));
+        console.log(uint256(postedHashes[_id]));
         require(sentHash == postedHashes[_id], "Invalid randomness");
         numFulfilled++;
         pendingRequests[_id].sender.fulfillRandomness(
@@ -60,7 +64,6 @@ contract RandomOracle is Ownable,IRandomOracle {
     }
     //Post hash for later fulfillment
     function postHash(bytes32 _hash, uint256 _id) external override onlyOwner {
-        require(_id >= numPosted, "This id already posted");
         postedHashes[_id] = _hash;
         numPosted++;
     }

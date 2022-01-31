@@ -1,43 +1,44 @@
-const randomOracleAddress = "";
+const randomOracleAddress = "0x5fbdb2315678afecb367f032d93f642f64180aa3";
 
 async function main() {
-    let randomOracle = ethers.getContractAt("IRandomOracle", randomOracleAddress);
-    let Hasher = await ethers.getContractFactory("hasher");
+    let randomOracle = await ethers.getContractAt("IRandomOracle", randomOracleAddress);
+    let Hasher = await ethers.getContractFactory("Hasher");
     let hasher = await Hasher.deploy();
-    let pendingBuffer = 500;
+    let pendingBuffer = ethers.BigNumber.from(500);
     let idToVal = {};
     setInterval(async () => {
         let numPosted = await randomOracle.numPosted();
         let numPending = await randomOracle.numPending();
         let numFulfilled = await randomOracle.numFulfilled();
+        console.log("posted:",numPosted,"pending:",numPending,"fulfilled:",numFulfilled)
         await new Promise(res => {
             let count = 0;
-            for(let i = 0; i < numPending - numFulfilled; i++) {
-                randomOracle.fulfillRandomness(idToVal[numPending+i], numPending+i).then(() => {
+            if(count == numPending.sub(numFulfilled)) res();
+            for(let i = 0; numPending.sub(numFulfilled).gt(i); i++) {
+                console.log("fulfilling, i:",i)
+                randomOracle.fulfillRandomness(idToVal[numFulfilled.toNumber()+i], numFulfilled.add(i)).then(() => {
                     count++;
-                    if(count == numPending - numFulfilled) res();
+                    if(count == numPending.sub(numFulfilled)) res();
                 });
             }
         });
-        await new Promise(res => {
+        await new Promise(async (res) => {
             let count = 0;
-            for(let i = 0; i < pendingBuffer - numPosted + numPending; i++) {
+            if(count == pendingBuffer.sub(numPosted).add(numPending)) res();
+            console.log("buffer:",pendingBuffer,"numPosted:",numPosted,"pending:",numPending,"all:",pendingBuffer.sub(numPosted).add(numPending))
+            for(let i = 0; pendingBuffer.sub(numPosted).add(numPending).gt(i); i++) {
                 let val = Math.floor(Math.random()*10000000);
                 hasher.hashSeed(val).then((hash) => {
-                    randomOracle.postHash(hash, numPosted+i).then(() => {
+                    randomOracle.postHash(hash, numPosted.add(i)).then(() => {
                         count++;
-                        idToVal[numPosted+i] = val;
-                        if(count == pendingBuffer - numPosted + numPending) res();
+                        idToVal[numPosted.toNumber()+i] = val;
+                        console.log("id:",numPosted.toNumber()+i,"val:",val);
+                        if(count == pendingBuffer.sub(numPosted).add(numPending)) res();
                     });
                 });
             }
         })
-    }, 100);
+    }, 10000);
 }
 
 main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error)
-    process.exit(1)
-  })

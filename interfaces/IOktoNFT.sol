@@ -48,4 +48,7 @@ interface IOktoNFT is IERC721Enumerable {
      * Get number of mints remaining the generation
      */
     function remainingToMint() external view returns(uint16);
+
+    //Owner
+    function uploadMetadata(uint256[] memory _traits) external;
 }

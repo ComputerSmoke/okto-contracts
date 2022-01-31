@@ -29,6 +29,8 @@ contract OktoNFT is ERC721Enumerable,Ownable,IOktoNFT {
     mapping(uint256 => uint256) idReplacements;
     //remaining to mint this generation
     uint16 public override remainingToMint;
+    //Amount of metadata uploaded
+    uint256 nextMetadataIdx;
 
     //Only allow aquarium to call this
     modifier onlyAquarium() {
@@ -36,12 +38,16 @@ contract OktoNFT is ERC721Enumerable,Ownable,IOktoNFT {
         _;
     }
 
-    constructor(
-        uint256[655] memory _traits
-    ) ERC721("Okto", "OKT") Ownable() {
+    constructor() ERC721("Okto", "OKT") Ownable() {
         genMintCaps = [5000, 15000, 22500, 27500];
         remainingToMint = genMintCaps[0];
-        for(uint i = 0; i < 655; i++) traits[i] = _traits[i];
+    }
+    //upload metadata
+    function uploadMetadata(uint256[] memory _traits) external override onlyOwner {
+        for(uint256 i = 0; i < _traits.length; i++) {
+            traits[i+nextMetadataIdx] = _traits[i];
+        }
+        nextMetadataIdx += _traits.length;
     }
     //Set aquarium pointer
     function setAquarium(address _aquarium) external onlyOwner {

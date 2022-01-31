@@ -62,7 +62,7 @@ async function deploy(devAddress) {
         randomOracle.address,
         [devAddress]
     );
-    oktoNFT = await OktoNFT.deploy(await getTraitsArr());
+    oktoNFT = await OktoNFT.deploy();
     aquarium = await Aquarium.deploy(
         oktoNFT.address, 
         oktoCoin.address, 
@@ -76,6 +76,12 @@ async function deploy(devAddress) {
     await oktoCoin.setAquarium(aquarium.address);
     await randomOracle.addAuthorization(aquarium.address);
     await randomOracle.addAuthorization(revenueManager.address);
+    //metadata upload
+    let traits = await getTraitsArr();
+    for(let i = 0; i < 10; i++) {
+        await oktoNFT.uploadMetadata(traits.slice(i*65, (i+1)*65));
+    }
+    await oktoNFT.uploadMetadata(traits.slice(650, 655));
     return ([
         randomOracle,
         oktoCoin,
@@ -85,5 +91,11 @@ async function deploy(devAddress) {
         aquarium
     ]);
 }
+
+async function main() {
+    await deploy("0xc8cab50f49aba9b17Bd62ef6Aa765ba7f1f8BD4A");
+}
+
+main()
 
 module.exports = {deploy}
