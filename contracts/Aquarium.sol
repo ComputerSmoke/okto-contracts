@@ -245,9 +245,10 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable,IRandomOracleUser {
     function fulfillRandomness(uint256 _id, uint256 _rand) external override onlyRandomOracle {
         RandomRequest storage randomRequest = pendingRandom[_id];
         require(randomRequest.sender != address(0), "request does not exist");
+        address sender = randomRequest.sender;
         randomRequest.sender = address(0);
         randomRequest.isMint ? 
-            _completeMint(randomRequest.sender, _rand) : 
+            _completeMint(sender, _rand) : 
             _completeUnstake(randomRequest.id, _rand);
     }
     //Complete minting process when randomness received

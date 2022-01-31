@@ -49,7 +49,7 @@ contract RandomOracle is Ownable,IRandomOracle {
         return numPending-1;
     }
     //Oracle fulfills pending randomness request
-    function fulfillRandomness(uint128 _seed, uint256 _id) external override onlyOwner {
+    function fulfillRandomness(uint128 _seed, uint256 _id) public override onlyOwner {
         console.log("num:",uint256(_seed));
         console.log("id:",_id);
         bytes32 sentHash = keccak256(abi.encodePacked(_seed));
@@ -62,10 +62,22 @@ contract RandomOracle is Ownable,IRandomOracle {
             _random((uint256(_id) << 128) | uint256(pendingRequests[_id].seed))
         );
     }
+    //Fulfill batch of requests
+    function fulfillBatch(uint128[] memory _seeds, uint256[] memory _ids) external override onlyOwner {
+        for(uint256 i = 0; i < _seeds.length; i++) {
+            fulfillRandomness(_seeds[i], _ids[i]);
+        }
+    }
     //Post hash for later fulfillment
-    function postHash(bytes32 _hash, uint256 _id) external override onlyOwner {
+    function postHash(bytes32 _hash, uint256 _id) public override onlyOwner {
         postedHashes[_id] = _hash;
         numPosted++;
+    }
+    //Post batch of hashes
+    function postBatch(bytes32[] memory _hashes, uint256[] memory _ids) external override onlyOwner {
+        for(uint256 i = 0; i < _hashes.length; i++) {
+            postHash(_hashes[i], _ids[i]);
+        }
     }
     //Get pseudo random number
     function _random(uint256 _seed) internal view returns(uint256) {
