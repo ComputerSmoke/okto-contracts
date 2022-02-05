@@ -40,7 +40,7 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable,IRandomOracleUser {
     //Total rewards given to staked octopi
     uint256 public override totalOktoEarned;
     
-    //Total okto stolen per squid alpha level
+    //Total okto stolen per squid power level
     uint256 public override oktoStolen;
     //Total power level of staked squids
     uint256 public override squidPowerStaked;
@@ -54,7 +54,7 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable,IRandomOracleUser {
     //NFTs not considered for this until they have been staked once.
     uint256[] public override squids;
     //Cost of minting NFT gen0 (FTM)
-    uint256 public override constant mintCost = 0.5 ether;
+    uint256 public override constant mintCost = 50 ether;
     //Cost of minting NFT gen1-3 (okto)
     uint256 public override constant oktoMintCost = 100000 ether;
 
@@ -71,6 +71,11 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable,IRandomOracleUser {
     uint256 pendingMintCount;
     //Randomness oracle
     IRandomOracle randomOracle;
+    
+    //Total number of free mints used (for marketing)
+    uint256 freeMintsUsed;
+    //Max number of free mints available (for marketing)
+    uint256 constant maxFreeMints = 275;
 
     //Require that msg.sender own the token, and generation is active
     modifier onlyTokenOwner(uint256 _tokenId) {
@@ -96,6 +101,27 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable,IRandomOracleUser {
         require(msg.sender == address(randomOracle));
         _;
     }
+    //Verify merkle proof of whitelist
+    modifier verifyProof (
+        uint128 _seed, 
+        bytes32[] calldata _merkleProof, 
+        uint256 _leafNum
+    ) {
+        //Verify merkle proof
+        bytes32 lastNode = bytes32(bytes20(msg.sender));
+        unchecked {
+            for(uint256 i = 0; i < _merkleProof.length; i++) {
+                //Reading bits from lowest to highest tells us if leaf merges left or right this step
+                bool right = (_leafNum >> i) == 1;
+                lastNode = (right ? 
+                    keccak256(abi.encodePacked(_merkleProof[i], lastNode)) : 
+                    keccak256(abi.encodePacked(lastNode, _merkleProof[i]))
+                );
+            }
+        }
+        require(lastNode == merkleRoot, "Invalid merkle proof");
+        _;
+    }
 
     constructor(
         address _oktoNFT,
@@ -115,7 +141,7 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable,IRandomOracleUser {
     //Stake squid or octo
     function stakeNFT(
         uint256 _tokenId
-    ) external override onlyTokenOwner(_tokenId) {
+    ) public override onlyTokenOwner(_tokenId) {
         Stake storage stake = stakes[_tokenId];
         require(!stake.staked, "Token is already staked.");
         uint8 traits = oktoNFT.getTraits(_tokenId);
@@ -135,23 +161,45 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable,IRandomOracleUser {
         stake.staked = true;
         emit Staked(msg.sender, _tokenId, stake.lastClaimEarned);
     }
+    //Stake multiple NFTs in one transaction
+    function stakeBatch(
+        uint256[] calldata _tokenIds
+    ) external override {
+        for(uint256 i = 0; i < _tokenIds.length; i++) stakeNFT(_tokenIds[i]);
+    }
+
     //Claim rewards from squid or octo
     function claimNFT(
         uint256 _tokenId
-    ) external override onlyTokenOwner(_tokenId) {
+    ) public override onlyTokenOwner(_tokenId) {
         require(stakes[_tokenId].staked, "Token is not staked.");
         (uint256 claimAmount, uint256 taxAmount, bool squid,) = _claim(_tokenId, false, 0);
         emit Claim(_tokenId, claimAmount, taxAmount, squid, false);
     }
+    //Claim rewards for multiple NFTs in one transaction
+    function claimBatch(uint256[] calldata _tokenIds) external override {
+        for(uint256 i = 0; i < _tokenIds.length; i++) claimNFT(_tokenIds[i]);
+    }
+
     //Unstake and claim rewards from squid or octo
     function unstakeNFT(
         uint256 _tokenId, 
         uint128 _seed
-    ) external override payable onlyTokenOwner(_tokenId) {
+    ) public override payable onlyTokenOwner(_tokenId) {
         require(stakes[_tokenId].staked, "Token is not staked.");
         uint256 id = randomOracle.requestRandomness{value: msg.value}(_seed);
         pendingRandom[id] = RandomRequest(msg.sender, false, _tokenId);
     }
+    //Unstake and claim rewards for multiple NFTs at once
+    function unstakeBatch(
+        uint256[] calldata _tokenIds, 
+        uint128 _seed
+    ) external override payable {
+        for(uint256 i = 0; i < _tokenIds.length; i++) {
+            unstakeNFT(_tokenIds[i], _seed);
+        }
+    }
+
     /**
      * @param _tokenId - ID of token to stake
      * @param _risk - true if risking (unstaking)
@@ -187,45 +235,46 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable,IRandomOracleUser {
     }
 
     //Mint
-    function mintWhitelist(uint128 _seed, bytes32[] calldata _merkleProof, uint256 _leafNum) external override payable {
+    function mintWhitelist(
+        uint128 _seed, 
+        bytes32[] calldata _merkleProof, 
+        uint256 _leafNum
+    ) external override payable verifyProof(_seed, _merkleProof, _leafNum) {
         require(msg.value >= mintCost, "Insufficient transfer value");
         require(oktoNFT.currentGen() == 0, "Active generation is not 0, use mintGenX");
-        //Verify merkle proof
-        bytes32 lastNode = bytes32(bytes20(msg.sender));
-        console.log("precasted address:",msg.sender);
-        console.log("casted address:");
-        console.logBytes32(lastNode);
-        console.log("first in proof:");
-        console.logBytes32(_merkleProof[0]);
-        console.log("from chain:");
-        console.logBytes32(keccak256(abi.encodePacked(
-            bytes32(bytes20(address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266))),
-            bytes32(bytes20(address(0x70997970C51812dc3A010C7d01b50e0d17dc79C8)))
-        )));
-        unchecked {
-            for(uint256 i = 0; i < _merkleProof.length; i++) {
-                //Reading bits from lowest to highest tells us if leaf merges left or right this step
-                bool right = (_leafNum >> i) == 1;
-                lastNode = (right ? 
-                    keccak256(abi.encodePacked(_merkleProof[i], lastNode)) : 
-                    keccak256(abi.encodePacked(lastNode, _merkleProof[i]))
-                );
-                console.log("lastNode:");
-                console.logBytes32(lastNode);
-            }
+        _mint(_seed, msg.sender);
+        revenueManager.mintIncome{value: msg.value - 0.5 ether}();
+    }
+    function mintWhitelistBatch(
+        uint128 _seed, 
+        bytes32[] calldata _merkleProof, 
+        uint256 _leafNum,
+        uint256 _mintNum
+    ) external override payable verifyProof(_seed, _merkleProof, _leafNum) {
+        require(msg.value >= mintCost * _mintNum, "Insufficient transfer value");
+        for(uint256 i = 0; i < _mintNum; i++) {
+            require(oktoNFT.currentGen() == 0, "Active generation is not 0, use mintGenX");
+            _mint(_seed, msg.sender);
         }
-        console.log("read proof");
-        require(lastNode == merkleRoot, "Invalid merkle proof");
-        console.log("valid proof");
-        _mint(_seed, msg.sender);
-        revenueManager.mintIncome{value: msg.value - 0.5 ether}();
+        revenueManager.mintIncome{value: msg.value - (0.5 ether * _mintNum)}();
     }
-    function mintGen0(uint128 _seed) external override payable {
+    //Mint from gen 0 not on whitelist
+    function mintGen0(uint128 _seed) public override payable {
         require(msg.value >= mintCost, "Insufficient transfer value");
         require(oktoNFT.currentGen() == 0, "Active generation is not 0, use mintGenX");
         _mint(_seed, msg.sender);
         revenueManager.mintIncome{value: msg.value - 0.5 ether}();
     }
+    //Mint multiple from gen0 in one transaction
+    function mintGen0Batch(uint128 _seed, uint256 _mintNum) external override payable {
+        require(msg.value >= mintCost*_mintNum, "Insufficient transfer value");
+        for(uint256 i = 0; i < _mintNum; i++) {
+            require(oktoNFT.currentGen() == 0, "Active generation is not 0, use mintGenX");
+            _mint(_seed, msg.sender);
+        }
+        revenueManager.mintIncome{value: msg.value - (0.5 ether * _mintNum)}();
+    }
+    //Mint gens 1-3
     function mintGenX(uint128 _seed) external override payable {
         require(!mintLock, "Reentrancy lock is active");
         require(oktoNFT.currentGen() > 0, "Active generation is 0, use mintGen0");
@@ -234,6 +283,23 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable,IRandomOracleUser {
         oktoCoin.burn(msg.sender, oktoMintCost);
         mintLock = false;
     }
+    //Mint multiple from gens 1-3
+    function mintGenXBatch(uint128 _seed, uint256 _mintNum) external override payable {
+        require(!mintLock, "Reentrancy lock is active");
+        mintLock = true;
+        for(uint256 i = 0; i < _mintNum; i++) {
+            require(oktoNFT.currentGen() > 0, "Active generation is 0, use mintGen0");
+            _mint(_seed, msg.sender);
+        }
+        oktoCoin.burn(msg.sender, oktoMintCost * _mintNum);
+        mintLock = false;
+    }
+    //Do a free mint for marketing (airdrop)
+    function freeMint(uint128 _seed, address _receiver) external override onlyOwner {
+        require(freeMintsUsed < maxFreeMints, "All free mints used");
+        _mint(_seed, _receiver);
+    }
+    //Internal minting function
     function _mint(uint128 _seed, address _sender) internal {
         require(oktoNFT.remainingToMint() - pendingMintCount > 0, "This generation has been fully minted");
         require(msg.value >= 0.5 ether, "Insufficient transfer amount for randomness");

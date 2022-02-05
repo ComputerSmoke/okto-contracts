@@ -10,12 +10,12 @@ let Aquarium,aquarium,OktoCoin,oktoCoin,OktoNFT,oktoNFT,RevenueManager,revenueMa
 let mintCost,genMintCaps;
 let hasher,Hasher;
 
-const testFullMint = false;
+const testFullMint = true;
 const testLottery = true;
-const testStaking = false;
-const testSteal = false;
-const testDecoding = false;
-const testPower = false;
+const testStaking = true;
+const testSteal = true;
+const testDecoding = true;
+const testPower = true;
 
 const nullAddress = "0x0000000000000000000000000000000000000000";
 //Expect two arrays to have equal values

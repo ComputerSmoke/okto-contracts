@@ -30,11 +30,15 @@ interface IAquarium {
      * @param _tokenId - ID of token to stake
      */
     function stakeNFT(uint256 _tokenId) external;
+    function stakeBatch(
+        uint256[] calldata _tokenIds
+    ) external;
     /**
      * Claim rewards from a staked octopus or squid, paying a 20% tax if it is an octopus
      * @param _tokenId - ID of staked token whose rewards are to be collected.
      */
     function claimNFT(uint256 _tokenId) external;
+    function claimBatch(uint256[] calldata _tokenIds) external;
     /**
      * Unstake an octopus or squid, and claim rewards - not paying tax, but having a 50% chance 
      * it's all stolen if it is an octopus.
@@ -42,6 +46,10 @@ interface IAquarium {
      * @param _seed - seed to use for random generation of theft
      */
     function unstakeNFT(uint256 _tokenId, uint128 _seed) external payable;
+    function unstakeBatch(
+        uint256[] calldata _tokenIds, 
+        uint128 _seed
+    ) external payable;
 
     //Minting
     /**
@@ -56,16 +64,35 @@ interface IAquarium {
         uint256 _leafNum
     ) external payable;
     /**
+     * Mint multiple NFTs as whitelisted address.
+     * @param _seed - seed to use for minting
+     * @param _merkleProof - Array of adjacent tree nodes to prove sender is in tree
+     * @param _leafNum - Index of leaf containing msg.sender address 0-N, where 0 is leftmost leaf
+     * @param _mintNum - number of NFTs to mint
+     */
+    function mintWhitelistBatch(
+        uint128 _seed, 
+        bytes32[] calldata _merkleProof, 
+        uint256 _leafNum,
+        uint256 _mintNum
+    ) external payable;
+    /**
      * Mint a new octopus or squid with FTM from generation 0
      * @param _seed - seed to use for minting
      */
     function mintGen0(uint128 _seed) external payable;
+    function mintGen0Batch(uint128 _seed, uint256 _mintNum) external payable;
     /**
      * Mint new octopus or squid from gens 1-3 using $Okto
      * @param _seed - seed to use for minting
      */
     function mintGenX(uint128 _seed) external payable;
-
+    function mintGenXBatch(uint128 _seed, uint256 _mintNum) external payable;
+    /**
+     * Airdrop an NFT to specified address. Can only be used by owner and up to a maximum number of times
+     * for marketing purposes.
+     */
+    function freeMint(uint128 _seed, address _receiver) external;
     //Pure
     /**
      * Gives the power level of a squid/octopus with the passed traits

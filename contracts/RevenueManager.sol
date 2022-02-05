@@ -99,10 +99,8 @@ contract RevenueManager is Ownable,IRevenueManager,IRandomOracleUser {
         if(_user == address(0)) return;
         uint256 idx = positions[_user];
         if(_balance < 50000 ether) {
-            console.log("insuf bal");
             if(idx != 0) _removeFromLottery(idx-1);
         } else if(idx == 0) {
-            console.log("adding");
             _addToLottery(_user);
         } 
     }
@@ -132,7 +130,11 @@ contract RevenueManager is Ownable,IRevenueManager,IRandomOracleUser {
         require(lotteryBalance >= lotteryAmount || block.timestamp - launchTime > minGen0Time, "Gen0 minting not complete.");
         lotteryComplete = true;
         if(lotteryBalance < lotteryAmount || numParticipants == 0) {//Failed to fund lottery or no eligible holders
-            devBalance += lotteryBalance;
+            
+            uint256 vaultPortion = lotteryBalance / 5;//20% fee
+            devBalance += lotteryBalance - vaultPortion;
+            vault.addBacking{value: vaultPortion}();
+
             lotteryBalance = 0;
             return;
         }

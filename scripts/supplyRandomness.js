@@ -1,10 +1,10 @@
 var sqlite = require('sqlite3').verbose();
 
-const mode = "local";
+const mode = "test";
 let randomOracleAddress;
 
-if(mode == "test") randomOracleAddress = "0xdC7129f2707a9035179515b89B9aD82A6f749c1E";
-else if(mode == "local") randomOracleAddress = "0x79A644e11Ec6B84C85345c2e64cB3226cf997159";
+if(mode == "test") randomOracleAddress = "0x031bDd9979eCA1AE93Ffd84B6f52cc1Bb4642c77";
+else if(mode == "local") randomOracleAddress = "0x5fbdb2315678afecb367f032d93f642f64180aa3";
 
 async function main() {
     let randomOracle = await ethers.getContractAt("IRandomOracle", randomOracleAddress);
@@ -26,9 +26,23 @@ async function main() {
     
     async function post() {
         let startTime = Date.now();
-        let numPosted = await randomOracle.numPosted();
-        let numPending = await randomOracle.numPending();
-        let numFulfilled = await randomOracle.numFulfilled();
+        let valid = true;
+        let numPosted = await randomOracle.numPosted().catch((e) => {
+            console.error(e);
+            valid = false;
+        });
+        let numPending = await randomOracle.numPending().catch((e) => {
+            console.error(e);
+            valid = false;
+        });
+        let numFulfilled = await randomOracle.numFulfilled().catch((e) => {
+            console.error(e);
+            valid = false;
+        });
+        if(!valid) {
+            setTimeout(post, 10000);
+            return;
+        }
         numFulfilled = numFulfilled.add(numSkipped);
         console.log("posted:",numPosted,"pending:",numPending,"fulfilled:",numFulfilled)
         
@@ -60,8 +74,12 @@ async function main() {
                 ids.push(both.idx);
                 vals.push(both.val);
             }
-            let tx = await randomOracle.fulfillBatch(vals, ids, {gasPrice: "200000000000"});
-            await tx.wait();
+            let tx = await randomOracle.fulfillBatch(vals, ids, {gasPrice: "200000000000"}).catch((e) => {
+                console.error(e);
+            });
+            await tx.wait().catch((e) => {
+                console.error(e);
+            });
         }
         if(toFulfill.length % 10 != 0) {
             let ids = [];
@@ -71,8 +89,12 @@ async function main() {
                 ids.push(both.idx);
                 vals.push(both.val);
             }
-            let tx = await randomOracle.fulfillBatch(vals, ids, {gasPrice: "200000000000"});
-            await tx.wait();
+            let tx = await randomOracle.fulfillBatch(vals, ids, {gasPrice: "200000000000"}).catch((e) => {
+                console.error(e);
+            });
+            await tx.wait().catch((e) => {
+                console.error(e);
+            });
         }
         
         let toPost = [];
@@ -80,7 +102,9 @@ async function main() {
         for(let i = 0; pendingBuffer.sub(numPosted).add(numPending).gt(i); i++) {
             let idx = numPosted.toNumber()+i;
             let val = web3.utils.randomHex(16);
-            let hash = await hasher.hashSeed(val);
+            let hash = await hasher.hashSeed(val).catch((e) => {
+                console.error(e);
+            });
             toPost.push({hash, idx});
             await new Promise(res => {
                 db.run("INSERT INTO idToVal (id, val) VALUES ("+(idx)+', "'+val+'")', res)
@@ -96,8 +120,12 @@ async function main() {
                 hashes.push(both.hash);
             }
             console.log("ids:",ids,"hashes:",hashes)
-            let tx = await randomOracle.postBatch(hashes, ids, {gasPrice: "200000000000"});
-            await tx.wait();
+            let tx = await randomOracle.postBatch(hashes, ids, {gasPrice: "200000000000"}).catch((e) => {
+                console.error(e);
+            });
+            await tx.wait().catch((e) => {
+                console.error(e);
+            });
         }
         if(toPost.length % 50 != 0) {
             let ids = [];
@@ -107,8 +135,12 @@ async function main() {
                 ids.push(both.idx);
                 hashes.push(both.hash);
             }
-            let tx = await randomOracle.postBatch(hashes, ids, {gasPrice: "200000000000"});
-            await tx.wait();
+            let tx = await randomOracle.postBatch(hashes, ids, {gasPrice: "200000000000"}).catch((e) => {
+                console.error(e);
+            });
+            await tx.wait().catch((e) => {
+                console.error(e);
+            });
         }
 
 
