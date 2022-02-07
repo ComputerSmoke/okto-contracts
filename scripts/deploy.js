@@ -104,6 +104,6 @@ async function main() {
     await deploy("0xc8cab50f49aba9b17Bd62ef6Aa765ba7f1f8BD4A");
 }
 
-//main()
+main()
 
 module.exports = {deploy}

@@ -1,6 +1,6 @@
 var sqlite = require('sqlite3').verbose();
 
-const mode = "test";
+const mode = "local";
 let randomOracleAddress;
 
 if(mode == "test") randomOracleAddress = "0x031bDd9979eCA1AE93Ffd84B6f52cc1Bb4642c77";
@@ -10,7 +10,7 @@ async function main() {
     let randomOracle = await ethers.getContractAt("IRandomOracle", randomOracleAddress);
     let Hasher = await ethers.getContractFactory("Hasher");
     let hasher = await Hasher.deploy();
-    let pendingBuffer = ethers.BigNumber.from(500);
+    let pendingBuffer = ethers.BigNumber.from(50);
     let db = new sqlite.Database("./data.db");
     let skiplist = {};
     let numSkipped = 0;

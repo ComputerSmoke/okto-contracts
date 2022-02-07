@@ -185,7 +185,7 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable,IRandomOracleUser {
     function unstakeNFT(
         uint256 _tokenId, 
         uint128 _seed
-    ) public override payable onlyTokenOwner(_tokenId) {
+    ) external override payable onlyTokenOwner(_tokenId) {
         require(stakes[_tokenId].staked, "Token is not staked.");
         uint256 id = randomOracle.requestRandomness{value: msg.value}(_seed);
         pendingRandom[id] = RandomRequest(msg.sender, false, _tokenId);
@@ -196,7 +196,9 @@ contract Aquarium is ERC721Holder,IAquarium,Ownable,IRandomOracleUser {
         uint128 _seed
     ) external override payable {
         for(uint256 i = 0; i < _tokenIds.length; i++) {
-            unstakeNFT(_tokenIds[i], _seed);
+            require(stakes[_tokenIds[i]].staked, "Token is not staked.");
+            uint256 id = randomOracle.requestRandomness{value: msg.value / _tokenIds.length}(_seed);
+            pendingRandom[id] = RandomRequest(msg.sender, false, _tokenIds[i]);
         }
     }
 
